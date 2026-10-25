@@ -2,59 +2,57 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Spacer()
-            
-            // 1. Logo Section: "Beyond" text + your custom SVG X-Logo
-            HStack(spacing: 6) {
-                Text("Beyond")
-                    .font(.system(size: 38, weight: .bold))
-                    .foregroundColor(Color.nearBlack)
+        NavigationStack {
+            VStack(spacing: 0) {
+                Spacer().frame(height: 70)
                 
-                Image("Beyond X Logo") // Matches your asset name
+                // 1. Fully Centered Header Lockup
+                VStack(spacing: 6) {
+                    HStack(alignment: .center, spacing: 8) {
+                        Text("Beyond")
+                            .font(.system(size: 60, weight: .bold))
+                            .foregroundColor(Color(hex: "161616"))
+                        
+                        Image("Beyond X Logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 85, height: 85)
+                            .offset(y: 2)
+                    }
+                    
+                    Text("Your Mind, No Limits.")
+                        .font(.custom("Arial-BoldMT", size: 20))
+                        .foregroundColor(Color(hex: "625F5F"))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                
+                Spacer().frame(height: 50)
+                
+                // 2. Robot Mascot Image
+                Image("Robot Waving")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 32, height: 32)
-            }
-            
-            // 2. Tagline
-            Text("Your Mind, No Limits.")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Color("textSplashTagline")) // Using your exact extracted hex #625F5F
-                .padding(.top, 4)
-            
-            Spacer()
-            
-            // 3. Robot Mascot Image
-            Image("Robot Waving") // Matches your asset name
-                .resizable()
-                .scaledToFit()
-                .frame(width: 240, height: 240)
-            
-            Spacer()
-            
-            // 4. Primary CTA Button ("Let's Get Creative!")
-            Button(action: {
-                // We'll hook up navigation to your Journey page here next!
-            }) {
-                Text("Let's Get Creative!")
-                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 270, height: 250)
+                
+                Spacer()
+                
+                // 3. Primary CTA Button
+                NavigationLink(destination: JourneyView()) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 15, weight: .bold))
+                        Text("Let’s Get Creative!")
+                            .font(.system(size: 17, weight: .bold))
+                    }
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color("AccentOrange")) // #FF792E / #E8723B
-                    .cornerRadius(28)
+                    .frame(width: 240, height: 50)
+                    .background(Color("AccentOrange"), in: Capsule())
+                }
+                .padding(.bottom, 50)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color("AppBackground").ignoresSafeArea())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color("AppBackground").ignoresSafeArea()) // #FBF8ED cream background
-    }
-}
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
     }
 }
