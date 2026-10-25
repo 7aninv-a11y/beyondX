@@ -10,24 +10,6 @@ import SwiftUI
 // ============================================================
 // SwiftUI ما يفهم "#FBF8ED" مباشرة، فنضيف له هذي الدالة.
 // بعدها نكتب: Color(hex: "#FBF8ED") وننسخ الألوان من Sketch بدون تحويل يدوي.
-extension Color {
-    init(hex: String) {
-        // نشيل أي رمز مو حرف أو رقم (مثل علامة #)
-        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-
-        // نحول النص إلى رقم
-        var value: UInt64 = 0
-        Scanner(string: cleaned).scanHexInt64(&value)
-
-        // نفصل الرقم إلى أحمر وأخضر وأزرق (كل واحد من 0 إلى 255)
-        // ثم نقسمه على 255 لأن SwiftUI يبي قيمة من 0 إلى 1
-        self.init(
-            red:   Double((value >> 16) & 0xFF) / 255,
-            green: Double((value >> 8)  & 0xFF) / 255,
-            blue:  Double(value         & 0xFF) / 255
-        )
-    }
-}
 
 
 // ============================================================
