@@ -16,11 +16,6 @@
 			path = beyondX;
 			sourceTree = "<group>";
 		};
-		E7EC69DA3090B2540002E19F /* LEVELS PAGES */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "LEVELS PAGES";
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -35,7 +30,6 @@
 		E73946F7308A49AA00C0694D = {
 			isa = PBXGroup;
 			children = (
-				E7EC69DA3090B2540002E19F /* LEVELS PAGES */,
 				E7394702308A49AA00C0694D /* beyondX */,
 				E7394701308A49AA00C0694D /* Products */,
 			);
@@ -64,7 +58,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				E7394702308A49AA00C0694D /* beyondX */,
-				E7EC69DA3090B2540002E19F /* LEVELS PAGES */,
 			);
 			name = beyondX;
 			productName = beyondX;
