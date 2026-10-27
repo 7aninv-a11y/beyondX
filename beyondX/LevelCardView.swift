@@ -86,6 +86,11 @@ struct LevelCardView: View {
                 .strokeBorder(state == .active ? Color("AccentOrange") : Color(hex: "979797"), lineWidth: state == .active ? 2.5 : 1.0)
         )
         .shadow(color: Color.black.opacity(0.10), radius: 4, x: 0, y: 4)
+        // Tap anywhere on the card (not when locked)
+        .contentShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+        .onTapGesture {
+            if state != .locked { action() }
+        }
     }
 }
 

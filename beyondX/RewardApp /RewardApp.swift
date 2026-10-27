@@ -21,7 +21,7 @@ struct RewardPopupView: View {
     // الصفحة ما تحسبها بنفسها، فقط تعرضها
     let xp: Int            // عدد نقاط الخبرة، مثال: 10
     let coins: Int         // عدد العملات، مثال: 350
-    let stars: Int         // عدد النجوم في الشارة، مثال: 30
+    let stars: Int         // عدد النجوم اللي جمعها المستخدم، مثال: 30
     let tip: String        // نص النصيحة
 
     // دالة تنفذ لما المستخدم يضغط زر Done
@@ -30,7 +30,7 @@ struct RewardPopupView: View {
 
     // ---------- الألوان من Sketch ----------
     let background = Color(hex: "#FBF8ED")   // خلفية الصفحة
-    let yellowBox  = Color(hex: "#FFF4CB")   // لون الصندوق والشارة
+    let yellowBox  = Color(hex: "#FFF4CB")   // لون الصندوق
     let borderGray = Color(hex: "#979797")   // لون الحدود
     let textBlack  = Color(hex: "#060606")   // لون النصوص
     let orange     = Color(hex: "#E8723B")   // لون زر Done
@@ -50,38 +50,9 @@ struct RewardPopupView: View {
             // spacing: 0 يعني ما نبي مسافات تلقائية، نتحكم فيها بأنفسنا
             VStack(spacing: 0) {
 
-                // ----------------------------------------
-                // أ) شارة النجوم (فوق يمين)
-                // ----------------------------------------
-                // HStack: يرتب العناصر أفقياً
-                HStack {
-                    // Spacer يدفع الشارة لليمين
-                    Spacer()
-
-                    // داخل الشارة: صورة النجمة + الرقم
-                    HStack(spacing: 6) {
-                        Image("goldenStar")          // اسم الصورة في Assets.xcassets
-                            .resizable()             // تسمح بتغيير الحجم
-                            .scaledToFit()           // تحافظ على النسبة
-                            .frame(width: 28, height: 28)
-
-                        Text("\(stars)")             // \( ) تحط قيمة المتغير داخل النص
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(textBlack)
-                    }
-                    .padding(.horizontal, 10)        // مسافة يمين ويسار داخل الشارة
-                    .frame(height: 33)               // ارتفاع الشارة من Sketch
-                    .background(yellowBox)           // لون الخلفية
-                    .clipShape(Capsule())            // يقص الشكل على هيئة كبسولة
-                    .overlay(                        // نرسم الحدود فوق الشكل
-                        Capsule().stroke(borderGray, lineWidth: 1)
-                    )
-                }
-                .padding(.horizontal, 24)            // مسافة من حافة الشاشة
-                .padding(.top, 8)                    // مسافة من فوق
-
-                // مسافة فاضية بين الشارة والعنوان
-                Spacer().frame(height: 50)
+                // CHANGED: حذفنا شارة النجوم اللي فوق يمين
+                // وحطينا مسافة بنفس مكانها عشان العنوان يبقى في نفس المكان
+                Spacer().frame(height: 91)
 
                 // ----------------------------------------
                 // ب) العنوان الكبير
@@ -90,13 +61,7 @@ struct RewardPopupView: View {
                     .font(.system(size: 46, weight: .black))   // black = أثقل وزن للخط
                     .foregroundColor(textBlack)
 
-                // ----------------------------------------
-                // ج) نص الـ XP
-                // ----------------------------------------
-                Text("+\(xp) XP")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(textBlack)
-                    .padding(.top, 20)               // مسافة من العنصر اللي فوقه
+                // CHANGED: حذفنا نص "+10 XP" اللي كان تحت العنوان
 
                 // ----------------------------------------
                 // د) صورة الروبوت
@@ -108,12 +73,20 @@ struct RewardPopupView: View {
                     .padding(.top, 12)
 
                 // ----------------------------------------
-                // هـ) نص العملات
+                // هـ) نص النجوم اللي جمعها
                 // ----------------------------------------
-                Text("You earned:+\(coins)")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(textBlack)
-                    .padding(.top, 24)
+                // CHANGED: صار يعرض عدد النجوم بدل العملات، ومعه صورة النجمة
+                HStack(spacing: 6) {
+                    Text("You earned: +\(stars)")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(textBlack)
+
+                    Image("goldenStar")          // نفس صورة النجمة في Assets
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
+                }
+                .padding(.top, 24)
 
                 // ----------------------------------------
                 // و) صندوق النصيحة
