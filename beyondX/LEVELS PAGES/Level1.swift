@@ -1,9 +1,3 @@
-//
-//  Level1.swift
-//  beyondX
-//
-//  Created by SAFIA  on 15/05/1448 AH.
-//
 import SwiftUI
 
 private let ideaCardColor = Color(hex: "FFF4CB")
@@ -16,6 +10,7 @@ struct Level1View: View {
     private let prompt = "What if humans could fly for 10 minutes every day?"
 
     var stars: Int = 30
+    var onComplete: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var ideas: [String] = []
@@ -94,8 +89,7 @@ struct Level1View: View {
                 stars: stars,
                 tip: "Try looking at the object from a different place, like home, school or outdoors .",
                 onDone: {
-                    showReward = false
-                    dismiss()
+                    onComplete()
                 }
             )
         }
