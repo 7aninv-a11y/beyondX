@@ -1,9 +1,3 @@
-//
-//  Level3.swift
-//  beyondX
-//
-//  Created by Layan  on 16/05/1448 AH.
-//
 import SwiftUI
 
 enum Theme {
@@ -60,10 +54,24 @@ struct Level3View: View {
     var maxIdeas: Int = 3
     var onDone: ([String]) -> Void = { _ in }
 
+    private let starsPerIdea = 10                          // NEW
+
     @State private var ideas: [String] = []
     @State private var showEditor = false
     @State private var draft = ""
     @FocusState private var editorFocused: Bool
+
+    // NEW: نافذة المكافأة + النجوم وحركة النجمة الطايرة
+    @State private var showReward = false
+    @State private var earnedStars = 0
+    @State private var badgeFrame: CGRect = .zero
+    @State private var cardFrame: CGRect = .zero
+    @State private var flyStart: CGPoint = .zero
+    @State private var showFlyingStar = false
+    @State private var starArrived = false
+    @State private var badgeBump = false
+
+    private var totalStars: Int { stars + earnedStars }    // NEW
 
     private var canCreate: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -88,11 +96,39 @@ struct Level3View: View {
                     .padding(.top, 259)
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
+
+            // NEW: النجمة اللي تطير للعداد
+            if showFlyingStar {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 44))
+                    .foregroundColor(Theme.star)
+                    .shadow(color: .orange.opacity(0.4), radius: 8)
+                    .scaleEffect(starArrived ? 0.4 : 1)
+                    .position(starArrived
+                              ? CGPoint(x: badgeFrame.minX + 19, y: badgeFrame.midY)
+                              : flyStart)
+                    .allowsHitTesting(false)
+            }
         }
+        .coordinateSpace(.named("screen"))                 // NEW
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .navigationBarBackButtonHidden(true)
         .animation(.easeInOut(duration: 0.25), value: showEditor)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ideas)
+        // NEW: نافذة المكافأة بعد Done
+        .fullScreenCover(isPresented: $showReward) {
+            RewardPopupView(
+                xp: 10,
+                coins: 350,
+                stars: stars + ideas.count * starsPerIdea,   // نفس العدد حتى لو النجمة لسا تطير
+                tip: "Try looking at the object from a different place, like home, school or outdoors .",
+                onDone: {
+                    showReward = false
+                    onDone(ideas)
+                    dismiss()
+                }
+            )
+        }
     }
 
     // MARK: Main content
@@ -103,7 +139,11 @@ struct Level3View: View {
             HStack {
                 BackCircleButton { dismiss() }
                 Spacer()
-                StarBadge(count: stars)
+                StarBadge(count: totalStars)                       // CHANGED
+                    .scaleEffect(badgeBump ? 1.18 : 1)             // NEW: نبضة لما توصل النجمة
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
+                        badgeFrame = $0                            // NEW: مكان العداد
+                    }
             }
             .padding(.horizontal, Theme.screenPadding)
             .padding(.top, 13)
@@ -139,7 +179,7 @@ struct Level3View: View {
             // MARK: Done
             ZStack {
                 if !ideas.isEmpty {
-                    Button { onDone(ideas) } label: {
+                    Button(action: finish) {                       // CHANGED: يفتح المكافأة
                         Text("Done")
                             .font(Theme.medium(14))
                             .foregroundColor(.white)
@@ -184,6 +224,7 @@ struct Level3View: View {
                             .foregroundColor(Theme.addText)
                             .frame(maxWidth: .infinity)
                             .frame(height: 44)
+                            .contentShape(Rectangle())
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
                                     .strokeBorder(
@@ -226,6 +267,9 @@ struct Level3View: View {
         .background(Color.white.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
+            cardFrame = $0                                         // NEW: مكان البطاقة
+        }
     }
 
     // MARK: Actions
@@ -244,7 +288,34 @@ struct Level3View: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, ideas.count < maxIdeas else { return }
         ideas.append(text)
+        flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)   // NEW
         closeEditor()
+        flyStarToBadge()                                           // NEW
+    }
+
+    // NEW: النجمة تطير من البطاقة للعداد، وبعدين يزيد ١٠
+    private func flyStarToBadge() {
+        starArrived = false
+        showFlyingStar = true
+
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.7)) {
+                starArrived = true
+            } completion: {
+                showFlyingStar = false
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    earnedStars += starsPerIdea
+                    badgeBump = true
+                } completion: {
+                    withAnimation(.spring(response: 0.3)) { badgeBump = false }
+                }
+            }
+        }
+    }
+
+    // NEW
+    private func finish() {
+        showReward = true
     }
 }
 
@@ -275,6 +346,7 @@ struct StarBadge: View {
             Text("\(count)")
                 .font(Theme.bold(14))
                 .foregroundColor(Theme.title)
+                .contentTransition(.numericText(value: Double(count)))   // NEW: الرقم يتحرك
         }
         .padding(.horizontal, 10)
         .frame(height: 29)
