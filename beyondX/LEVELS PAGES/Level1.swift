@@ -19,6 +19,7 @@ struct Level1View: View {
     @State private var draft = ""
     @State private var showReward = false
     @State private var isAddingIdea = false          // NEW: يفتح بطاقة الإضافة
+    @State private var showPause = false             // NEW: صفحة الـ Pause
     @FocusState private var isFocused: Bool
 
     // NEW: النجوم وحركة النجمة الطايرة
@@ -31,6 +32,10 @@ struct Level1View: View {
     @State private var badgeBump = false
 
     private var totalStars: Int { stars + earnedStars }   // NEW
+
+    // NEW: شرط فتح الليفل اللي بعده
+    private let starsToUnlockNext = 30
+    private var earnedInThisLevel: Int { ideas.count * starsPerIdea }
 
     var body: some View {
         ZStack {
@@ -71,10 +76,10 @@ struct Level1View: View {
                     .padding(.top, 14)
 
                 // Ideas + add field
-                VStack(spacing: 8) {
+                VStack(spacing: 14) {                         // CHANGED: نفس المسافة في Level 3
                     ForEach(Array(ideas.enumerated()), id: \.offset) { _, idea in
                         IdeaRow(text: idea, fill: ideaCardColor)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(.scale.combined(with: .opacity))   // CHANGED: نفس حركة Level 3
                     }
 
                     if ideas.count < maxIdeas {
@@ -119,6 +124,12 @@ struct Level1View: View {
             }
         }
         .coordinateSpace(.named("screen"))           // NEW
+        .pausePage(isPresented: $showPause,          // NEW: الـ Pause
+                   onPause: { dismiss() },           // زر pause يرجع للماب
+                   onBack: { })                      // السهم يسكّر الـ Pause ويرجع لليفل
+        .onChange(of: showPause) { _, isShowing in   // NEW: يسكّر الكيبورد والبطاقة إذا انفتح الـ Pause
+            if isShowing { closeCard() }
+        }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ideas)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isAddingIdea)   // NEW
         .fullScreenCover(isPresented: $showReward) {
@@ -129,7 +140,10 @@ struct Level1View: View {
                 tip: "Try looking at the object from a different place, like home, school or outdoors .",
                 onDone: {
                     showReward = false
-                    onComplete()
+                    // NEW: يفتح الليفل اللي بعده بس إذا جمع ٣٠ نجمة (يعني كتب ٣ أفكار)
+                    if earnedInThisLevel >= starsToUnlockNext {
+                        onComplete()
+                    }
                     dismiss()
                 }
             )
@@ -141,7 +155,7 @@ struct Level1View: View {
     private var topBar: some View {
         HStack {
             Button {
-                dismiss()
+                showPause = true                      // CHANGED: كان dismiss()، الحين يفتح الـ Pause
             } label: {
                 Image(systemName: "arrow.left")
                     .font(.system(size: 17, weight: .medium))
@@ -200,40 +214,45 @@ struct Level1View: View {
     }
 
     // NEW: البطاقة البيضاء (cancel / create + حقل الكتابة)
+    // CHANGED: نفس تصميم بطاقة الكتابة في Level 3
     private var ideaCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Button("cancel", action: closeCard)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color(hex: "7B7F7F"))
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(hex: "6B6B66"))
 
                 Spacer()
 
-                Button("create", action: addIdea)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(canCreate ? .black : Color(hex: "7B7F7F").opacity(0.5))
-                    .padding(.horizontal, 6)
-                    .frame(height: 24)
-                    .background(Capsule().fill(Color.gray.opacity(0.1)))
-                    .disabled(!canCreate)
+                // زر create برتقالي
+                Button(action: addIdea) {
+                    Text("create")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 26)
+                        .background(Capsule().fill(Color.primaryOrange))
+                }
+                .opacity(canCreate ? 1 : 0.4)     // باهت لين يكتب شي
+                .disabled(!canCreate)
             }
 
             TextField(prompt, text: $draft, axis: .vertical)
-                .font(.system(size: 16))
-                .lineLimit(1...4)
+                .font(.system(size: 13))
+                .foregroundColor(Color(hex: "111111"))
+                .lineLimit(1...6)
                 .focused($isFocused)
                 .submitLabel(.done)
                 .onSubmit(addIdea)
+
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 28)
-        .frame(maxWidth: .infinity, minHeight: 167, alignment: .top)
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.white.opacity(0.95))
-                .shadow(color: Color(hex: "262626").opacity(0.25), radius: 54, y: 9)
-        )
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .frame(height: 161)
+        .background(Color.white.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
             cardFrame = $0                                             // NEW: مكان البطاقة
         }
@@ -293,22 +312,18 @@ private struct IdeaRow: View {
     let text: String
     let fill: Color
 
+    // CHANGED: نفس تصميم الفكرة بعد الإضافة في Level 3 (بدون حدود + شادو)
     var body: some View {
         Text(text)
-            .font(.system(size: 14))
-            .foregroundStyle(.black)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 47)
+            .font(.system(size: 13))
+            .foregroundColor(Color(hex: "111111"))
+            .lineLimit(1)
             .padding(.horizontal, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(fill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(Color.lockedBorder, lineWidth: 1)
-                    )
-            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 45)
+            .background(Color(hex: "FCF0C6"))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 3)
     }
 }
 

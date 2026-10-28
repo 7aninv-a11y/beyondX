@@ -19,6 +19,11 @@ extension Color {
     static let textSecondary = Color(hex: "373737")
     static let textSplashTagline = Color(hex: "625F5F")
     static let textSubtitle = Color(hex: "888585")
+
+    // NEW: ألوان صفحة الـ Pause
+    static let pauseCard = Color(hex: "EBEBEB")
+    static let pauseButtonGray = Color(hex: "DADADA")
+    static let pauseSubtitle = Color(hex: "8E8E93")
 }
 
 // MARK: - Hex Helper Extension
@@ -34,5 +39,136 @@ extension Color {
         let b = Double(rgbValue & 0x0000FF) / 255.0
         
         self.init(red: r, green: g, blue: b)
+    }
+}
+
+
+// MARK: - Pause Page (NEW)
+// الاستخدام في أي صفحة:
+//   @State private var showPause = false
+//   .pausePage(isPresented: $showPause, onPause: { dismiss() })
+//
+// onContinue و onBack اختياريين:
+//   - Continue إذا ما كتبتيه: يسكّر الـ Pause بس
+//   - زر الرجوع إذا ما كتبتيه: يسوي نفس زر pause
+extension View {
+    func pausePage(isPresented: Binding<Bool>,
+                   onPause: @escaping () -> Void,
+                   onContinue: @escaping () -> Void = {},
+                   onBack: (() -> Void)? = nil) -> some View {
+        self.overlay {
+            if isPresented.wrappedValue {
+                PausePageView(
+                    onBack: {
+                        isPresented.wrappedValue = false
+                        (onBack ?? onPause)()
+                    },
+                    onPause: {
+                        isPresented.wrappedValue = false
+                        onPause()
+                    },
+                    onContinue: {
+                        isPresented.wrappedValue = false
+                        onContinue()
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: isPresented.wrappedValue)
+    }
+}
+
+struct PausePageView: View {
+
+    var onBack: () -> Void         // زر الرجوع (فوق يسار)
+    var onPause: () -> Void        // زر pause: يطلع من الليفل (التقدم محفوظ)
+    var onContinue: () -> Void     // زر Continue: يكمل اللعب
+
+    var body: some View {
+        ZStack {
+            // خلفية شفافة، الصفحة اللي ورا تبان
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 0) {
+
+                // زر الرجوع
+                Button(action: onBack) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(.black)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color.white.opacity(0.25)))
+                        .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
+                }
+                .padding(.leading, 42)
+                .padding(.top, 13)
+
+                Spacer().frame(height: 121)
+
+                // الروبوت + البطاقة (الروبوت يطل من ورا البطاقة)
+                VStack(alignment: .leading, spacing: -23) {
+                    Image("pauseMascot")             // "Cute Mint-Caped Robot Mascot" من Sketch
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 204, height: 186)
+                        .padding(.leading, 36)
+
+                    pauseCard
+                }
+                .padding(.horizontal, 51)
+
+                Spacer()
+            }
+        }
+    }
+
+    private var pauseCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Need a break ?")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.textPrimary)
+
+            Text("Progress saved...")
+                .font(.system(size: 17))
+                .foregroundColor(.pauseSubtitle)
+                .padding(.top, 14)
+
+            HStack(spacing: 10) {
+                Button(action: onPause) {
+                    Text("pause")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Capsule().fill(Color.pauseButtonGray))
+                }
+
+                Button(action: onContinue) {
+                    Text("Continue")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Capsule().fill(Color.primaryOrange))
+                }
+            }
+            .padding(.top, 22)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 22)
+        .padding(.bottom, 22)
+        .padding(.leading, 8)
+        .frame(maxWidth: .infinity, minHeight: 171, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 34)
+                .fill(Color.pauseCard)
+                .shadow(color: .black.opacity(0.18), radius: 30, y: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 34)
+                .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+        )
     }
 }

@@ -1,4 +1,3 @@
-
 import SwiftUI
 
 private enum JourneyLevel: Int, Identifiable {
