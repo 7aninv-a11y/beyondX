@@ -20,7 +20,7 @@ extension Color {
     static let textSplashTagline = Color(hex: "625F5F")
     static let textSubtitle = Color(hex: "888585")
 
-    // NEW: ألوان صفحة الـ Pause
+    // ألوان صفحة الـ Pause
     static let pauseCard = Color(hex: "EBEBEB")
     static let pauseButtonGray = Color(hex: "DADADA")
     static let pauseSubtitle = Color(hex: "8E8E93")
@@ -43,7 +43,7 @@ extension Color {
 }
 
 
-// MARK: - Pause Page (NEW)
+// MARK: - Pause Page
 // الاستخدام في أي صفحة:
 //   @State private var showPause = false
 //   .pausePage(isPresented: $showPause, onPause: { dismiss() })
@@ -56,26 +56,28 @@ extension View {
                    onPause: @escaping () -> Void,
                    onContinue: @escaping () -> Void = {},
                    onBack: (() -> Void)? = nil) -> some View {
-        self.overlay {
-            if isPresented.wrappedValue {
-                PausePageView(
-                    onBack: {
-                        isPresented.wrappedValue = false
-                        (onBack ?? onPause)()
-                    },
-                    onPause: {
-                        isPresented.wrappedValue = false
-                        onPause()
-                    },
-                    onContinue: {
-                        isPresented.wrappedValue = false
-                        onContinue()
-                    }
-                )
-                .transition(.opacity)
+        self
+            .blur(radius: isPresented.wrappedValue ? 8 : 0)   // NEW: الصفحة اللي ورا تصير ضبابية
+            .overlay {
+                if isPresented.wrappedValue {
+                    PausePageView(
+                        onBack: {
+                            isPresented.wrappedValue = false
+                            (onBack ?? onPause)()
+                        },
+                        onPause: {
+                            isPresented.wrappedValue = false
+                            onPause()
+                        },
+                        onContinue: {
+                            isPresented.wrappedValue = false
+                            onContinue()
+                        }
+                    )
+                    .transition(.opacity)
+                }
             }
-        }
-        .animation(.easeInOut(duration: 0.25), value: isPresented.wrappedValue)
+            .animation(.easeInOut(duration: 0.25), value: isPresented.wrappedValue)
     }
 }
 
@@ -87,7 +89,7 @@ struct PausePageView: View {
 
     var body: some View {
         ZStack {
-            // خلفية شفافة، الصفحة اللي ورا تبان
+            // خلفية شفافة، الصفحة اللي ورا تبان (ضبابية)
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
 
