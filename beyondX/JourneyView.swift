@@ -85,6 +85,9 @@ struct JourneyView: View {
 
             case .level3:
                 Level3View { _ in
+                    // بعد الاحتفال: كل الليفلز مفتوحة
+                    level1Completed = true
+                    level2Completed = true
                     level3Completed = true
                     activeLevel = nil
                 }

@@ -107,10 +107,8 @@ struct Level3View: View {
                     stars: stars + ideas.count * starsPerIdea,
                     tip: LevelTips.level3                         // التيب من LevelHelpers
                 ) {
-                    // يكمّل الليفل بس إذا جمع ٣٠ نجمة (يعني كتب ٣ أفكار)
-                    if earnedInThisLevel >= starsToComplete {
-                        onDone(ideas)
-                    }
+                    // Done في صفحة الاحتفال: نرجع للجورني وكل الليفلز مفتوحة
+                    onDone(ideas)
                     dismiss()
                 }
                 .transition(.opacity)
@@ -344,95 +342,347 @@ struct Level3View: View {
     }
 }
 
-// MARK: - Celebration page
+// MARK: - Celebration page (animated)
+//
+// When the page opens:
+//  1. confetti rains down
+//  2. everything fades in together (mascot, titles, tip card, Done)
+//     mascot: happy giggling eyes, mercury head, slow soft squeeze of the star
+//  3. the journey: Level 1 grows and turns green -> line -> Level 2 -> line -> Level 3
+//  4. the star badge counts up
 
 struct CelebrationView: View {
     var stars: Int
     var tip: String = "Creativity has no limits. Keep exploring your potential and thinking beyond!"
     var onDone: () -> Void = {}
 
+    @State private var shownStars = 0
+    @State private var started = false
+    @State private var showMascot = false
+    @State private var showTitle = false
+    @State private var showSubtitle = false
+    @State private var checked = 0            // levels turned green (0...3)
+    @State private var lineFill: CGFloat = 0  // green line: 0, 0.5, 1
+    @State private var popLevel = 0           // level that is popping right now
+    @State private var showTip = false
+    @State private var showDone = false
+    @State private var confettiOn = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
+            content
+            if confettiOn {
+                CelebrationConfetti()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+        }
+        .task { await play() }
+    }
 
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    StarBadge(count: stars)
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 13)
+    private var content: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                StarBadge(count: shownStars)
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 13)
 
-                Image("CelebrationMascot")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 236, height: 225)
-                    .padding(.top, 32)
+            CelebAnimatedMascot()
+                .frame(width: 236, height: 225)
+                .opacity(showMascot ? 1 : 0)
+                .padding(.top, 32)
 
-                Text("You Went Beyond!")
-                    .font(.system(size: 20, weight: .black))
-                    .fontWidth(.expanded)
-                    .foregroundColor(.black)
-                    .padding(.top, 29)
+            Text("You Went Beyond!")
+                .font(.system(size: 20, weight: .black))
+                .fontWidth(.expanded)
+                .foregroundColor(.black)
+                .opacity(showTitle ? 1 : 0)
+                .padding(.top, 29)
 
-                Text("You’ve Completed Your Creative Journey")
-                    .font(Theme.bold(14))
-                    .foregroundColor(Theme.orange)
-                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 4)
-                    .padding(.top, 16)
+            Text("You’ve Completed Your Creative Journey")
+                .font(Theme.bold(14))
+                .foregroundColor(Theme.orange)
+                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 4)
+                .opacity(showSubtitle ? 1 : 0)
+                .padding(.top, 16)
 
-                JourneyProgress()
-                    .padding(.top, 38)
+            JourneyProgress(checked: checked, lineFill: lineFill, popLevel: popLevel)
+                .padding(.top, 38)
 
-                TipCard(text: tip)
-                    .padding(.top, 41)
+            TipCard(text: tip)
+                .opacity(showTip ? 1 : 0)
+                .padding(.top, 41)
 
-                Spacer(minLength: 0)
+            Spacer(minLength: 0)
 
-                Button(action: onDone) {
-                    Text("Done")
-                        .font(Theme.regular(17))
-                        .foregroundColor(.white)
-                        .frame(width: 144, height: 50)
-                        .background(Theme.orange)
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                }
+            doneButton
                 .padding(.bottom, 25)
+        }
+    }
+
+    private var doneButton: some View {
+        Button(action: onDone) {
+            Text("Done")
+                .font(Theme.regular(17))
+                .foregroundColor(.white)
+                .frame(width: 144, height: 50)
+                .background(Theme.orange)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+        }
+        .opacity(showDone ? 1 : 0)
+    }
+
+    private func play() async {
+        if started { return }
+        started = true
+
+        if reduceMotion {
+            shownStars = stars
+            showMascot = true
+            showTitle = true
+            showSubtitle = true
+            checked = 3
+            lineFill = 1
+            showTip = true
+            showDone = true
+            return
+        }
+
+        shownStars = max(0, stars - 30)
+        confettiOn = true
+
+        // everything fades in together
+        withAnimation(.easeInOut(duration: 0.8)) {
+            showMascot = true
+            showTitle = true
+            showSubtitle = true
+            showTip = true
+            showDone = true
+        }
+        try? await Task.sleep(for: .seconds(0.6))
+
+        // star badge counts up quietly
+        Task {
+            while shownStars < stars {
+                withAnimation(.easeOut(duration: 0.1)) { shownStars += 1 }
+                try? await Task.sleep(for: .seconds(0.03))
+            }
+        }
+
+        // the journey: Level 1 -> line -> Level 2 -> line -> Level 3
+        for level in 1...3 {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.45)) {
+                checked = level
+                popLevel = level
+            }
+            try? await Task.sleep(for: .seconds(0.3))
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { popLevel = 0 }
+            if level < 3 {
+                withAnimation(.easeInOut(duration: 0.5)) { lineFill = CGFloat(level) * 0.5 }
+                try? await Task.sleep(for: .seconds(0.5))
+            }
+        }
+
+    }
+}
+
+// MARK: Mascot: happy giggling eyes + mercury head (same style as the splash robot)
+private struct CelebAnimatedMascot: View {
+    @State private var flameFrame = 1
+    @State private var hugSqueeze = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // centre of the eyes inside the image (so they squeeze around their own centre)
+    private let eyesCentre = UnitPoint(x: 0.527, y: 0.292)
+    private let starCentre = UnitPoint(x: 0.5905, y: 0.4652)
+
+    var body: some View {
+        ZStack {
+            // mercury head (behind the helmet)
+            ForEach(1...36, id: \.self) { frame in
+                Image("Celeb Flame \(frame)")
+                    .resizable().scaledToFit()
+                    .opacity(flameFrame == frame ? 1 : 0)
+            }
+            Image("Celeb Body")
+                .resizable().scaledToFit()
+            // his hands + the star he hugs: a slow, soft squeeze (no spinning)
+            Image("Celeb Hug")
+                .resizable().scaledToFit()
+                .scaleEffect(hugSqueeze ? 1.025 : 1, anchor: starCentre)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+                           value: hugSqueeze)
+                .onAppear { hugSqueeze = true }
+            // happy eyes: a little "hehe" bounce every couple of seconds
+            Image("Celeb Eyes")
+                .resizable().scaledToFit()
+                .keyframeAnimator(initialValue: CelebEyes(), repeating: !reduceMotion) { eyes, v in
+                    eyes
+                        .scaleEffect(x: 1, y: v.squash, anchor: eyesCentre)
+                        .offset(y: v.lift)
+                } keyframes: { _ in
+                    KeyframeTrack(\.lift) {
+                        CubicKeyframe(-2, duration: 0.3)
+                        CubicKeyframe(0, duration: 0.3)
+                        CubicKeyframe(-2, duration: 0.3)
+                        CubicKeyframe(0, duration: 0.35)
+                        LinearKeyframe(0, duration: 1.6)
+                    }
+                    KeyframeTrack(\.squash) {
+                        CubicKeyframe(0.9, duration: 0.3)
+                        CubicKeyframe(1, duration: 0.3)
+                        CubicKeyframe(0.9, duration: 0.3)
+                        CubicKeyframe(1, duration: 0.35)
+                        LinearKeyframe(1, duration: 1.6)
+                    }
+                }
+        }
+        .task {
+            guard !reduceMotion else { return }
+            while !Task.isCancelled {
+                flameFrame = flameFrame % 36 + 1
+                try? await Task.sleep(for: .seconds(0.08))
             }
         }
     }
 }
 
+private struct CelebEyes {
+    var lift: CGFloat = 0
+    var squash: CGFloat = 1
+}
+
+// MARK: Progress line + checkmarks (a little journey: 1 -> 2 -> 3)
 private struct JourneyProgress: View {
+    var checked: Int = 3
+    var lineFill: CGFloat = 1
+    var popLevel: Int = 0
     private let green = Color(hex: 0x3FBF94)
+    private let track = Color.black.opacity(0.08)
 
     var body: some View {
         ZStack(alignment: .top) {
             Rectangle()
+                .fill(track)
+                .frame(width: 200, height: 3)
+                .padding(.top, 15)
+
+            Rectangle()
                 .fill(green)
                 .frame(width: 200, height: 3)
+                .scaleEffect(x: lineFill, y: 1, anchor: .leading)
                 .padding(.top, 15)
 
             HStack(spacing: 0) {
                 ForEach(1...3, id: \.self) { level in
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 16, weight: .heavy))
-                            .foregroundColor(.black)
-                            .frame(width: 34, height: 34)
-                            .background(green)
-                            .clipShape(Circle())
-
-                        Text("Level \(level)")
-                            .font(Theme.medium(13))
-                            .foregroundColor(Color(hex: 0x373737))
-                    }
-                    .frame(width: 100)
+                    CelebLevelCheck(level: level, isOn: checked >= level, green: green, track: track)
+                        .scaleEffect(popLevel == level ? 1.3 : 1)
+                        .frame(width: 100)
                 }
             }
         }
         .frame(width: 300)
+    }
+}
+
+private struct CelebLevelCheck: View {
+    var level: Int
+    var isOn: Bool
+    var green: Color
+    var track: Color
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(isOn ? green : track)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(.black)
+                    .scaleEffect(isOn ? 1 : 0.2)
+                    .opacity(isOn ? 1 : 0)
+            }
+            .frame(width: 34, height: 34)
+
+            Text("Level \(level)")
+                .font(Theme.medium(13))
+                .foregroundColor(Color(hex: 0x373737))
+        }
+    }
+}
+
+// MARK: Confetti
+private struct CelebConfettiPiece {
+    var x: Double
+    var delay: Double
+    var speed: Double
+    var drift: Double
+    var freq: Double
+    var phase: Double
+    var spin: Double
+    var w: Double
+    var h: Double
+    var color: Color
+    var round: Bool
+
+    static func random() -> CelebConfettiPiece {
+        let colors: [Color] = [Theme.orange, Theme.star, Color(hex: 0x3FBF94), Color(hex: 0x7FD6B8), Color(hex: 0xFF9A5C)]
+        return CelebConfettiPiece(
+            x: Double.random(in: 0...1),
+            delay: Double.random(in: 0...1.2),
+            speed: Double.random(in: 180...320),
+            drift: Double.random(in: 10...30),
+            freq: Double.random(in: 2...4),
+            phase: Double.random(in: 0...6.28),
+            spin: Double.random(in: 180...540),
+            w: Double.random(in: 6...10),
+            h: Double.random(in: 8...14),
+            color: colors.randomElement() ?? Theme.orange,
+            round: Int.random(in: 0...3) == 0
+        )
+    }
+}
+
+private struct CelebrationConfetti: View {
+    @State private var start = Date()
+    @State private var pieces: [CelebConfettiPiece] = (0..<90).map { _ in CelebConfettiPiece.random() }
+    private let duration: Double = 5
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { ctx, size in
+                draw(in: &ctx, size: size, time: timeline.date.timeIntervalSince(start))
+            }
+        }
+    }
+
+    private func draw(in ctx: inout GraphicsContext, size: CGSize, time t: Double) {
+        if t >= duration { return }
+        let fade: Double = t > duration - 1 ? duration - t : 1
+
+        for p in pieces {
+            let lt = t - p.delay
+            if lt <= 0 { continue }
+
+            let y = -20 + p.speed * lt
+            if y > Double(size.height) + 20 { continue }
+            let x = p.x * Double(size.width) + p.drift * sin(lt * p.freq + p.phase)
+            let flip = abs(cos(lt * 5 + p.phase))
+            let rect = CGRect(x: -p.w / 2, y: -p.h * flip / 2, width: p.w, height: max(1, p.h * flip))
+            let shape = p.round ? Path(ellipseIn: rect) : Path(roundedRect: rect, cornerRadius: 1.5)
+
+            var g = ctx
+            g.opacity = fade
+            g.translateBy(x: x, y: y)
+            g.rotate(by: .degrees(p.spin * lt))
+            g.fill(shape, with: .color(p.color))
+        }
     }
 }
 
@@ -441,9 +691,9 @@ private struct TipCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            Image(systemName: "lightbulb.fill")
-                .font(.system(size: 26))
-                .foregroundColor(Theme.star)
+            Image("lightbulb")                  // the lightbulb from Assets (same as Sketch)
+                .resizable()
+                .scaledToFit()
                 .frame(width: 45, height: 39)
                 .padding(.top, 17)
                 .padding(.leading, 3)
