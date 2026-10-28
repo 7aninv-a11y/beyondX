@@ -15,16 +15,6 @@ enum Theme {
     static let note         = Color(hex: 0xFCF0C6)
     static let orange       = Color(hex: 0xDE7446)
 
-    // Cup
-    static let cupBodyTop    = Color(hex: 0x5FA3B9)
-    static let cupBodyBottom = Color(hex: 0x4F8EA6)
-    static let cupBase       = Color(hex: 0x4A8AA2)
-    static let cupRim        = Color(hex: 0x6DB6CD)
-    static let cupInside     = Color(hex: 0x3E8A69)
-    static let cupInsideDark = Color(hex: 0x2C6A52)
-    static let cupHandle     = Color(hex: 0x5159B4)
-    static let cupStar       = Color(hex: 0x5B57B2)
-
     // MARK: Fonts
     static func bold(_ size: CGFloat) -> Font    { .system(size: size, weight: .bold) }
     static func medium(_ size: CGFloat) -> Font  { .system(size: size, weight: .medium) }
@@ -46,6 +36,8 @@ extension Color {
         )
     }
 }
+
+// MARK: - Level3View
 
 struct Level3View: View {
     @Environment(\.dismiss) private var dismiss
@@ -161,7 +153,9 @@ struct Level3View: View {
             .padding(.top, 47)
 
             // MARK: Object
-            CupView()
+            Image("cup")
+                .resizable()
+                .scaledToFit()
                 .frame(width: 247, height: 174)
                 .padding(.top, 72)
                 .padding(.leading, 24)
@@ -474,107 +468,7 @@ struct StarBadge: View {
     }
 }
 
-// MARK: - Cup illustration (drawn in code, no image needed)
-
-struct CupView: View {
-    var body: some View {
-        GeometryReader { geo in
-            let s = geo.size.width / 247
-            ZStack {
-                CupHandle()
-                    .stroke(Theme.cupHandle, style: StrokeStyle(lineWidth: 18 * s, lineCap: .round))
-                CupBase().fill(Theme.cupBase)
-                CupBody().fill(
-                    LinearGradient(colors: [Theme.cupBodyTop, Theme.cupBodyBottom],
-                                   startPoint: .top, endPoint: .bottom)
-                )
-                CupStars().fill(Theme.cupStar)
-                CupEllipse(x: 4, y: 0, w: 190, h: 38).fill(Theme.cupRim)
-                CupEllipse(x: 14, y: 5.5, w: 170, h: 29).fill(Theme.cupInside)
-                CupEllipse(x: 24, y: 16, w: 150, h: 18).fill(Theme.cupInsideDark)
-            }
-        }
-        .aspectRatio(247.0 / 174.0, contentMode: .fit)
-    }
-}
-
-private func cupPoint(_ x: CGFloat, _ y: CGFloat, _ rect: CGRect) -> CGPoint {
-    CGPoint(x: rect.minX + x / 247 * rect.width,
-            y: rect.minY + y / 174 * rect.height)
-}
-
-struct CupEllipse: Shape {
-    var x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat
-    func path(in rect: CGRect) -> Path {
-        Path(ellipseIn: CGRect(
-            x: rect.minX + x / 247 * rect.width,
-            y: rect.minY + y / 174 * rect.height,
-            width: w / 247 * rect.width,
-            height: h / 174 * rect.height
-        ))
-    }
-}
-
-struct CupBase: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path(ellipseIn: CGRect(
-            x: rect.minX + 42 / 247 * rect.width,
-            y: rect.minY + 146 / 174 * rect.height,
-            width: 112 / 247 * rect.width,
-            height: 26 / 174 * rect.height
-        ))
-    }
-}
-
-struct CupBody: Shape {
-    func path(in rect: CGRect) -> Path {
-        let m = { (x: CGFloat, y: CGFloat) -> CGPoint in cupPoint(x, y, rect) }
-        var p = Path()
-        p.move(to: m(6, 20))
-        p.addCurve(to: m(48, 150), control1: m(-2, 75), control2: m(10, 128))
-        p.addQuadCurve(to: m(142, 150), control: m(95, 164))
-        p.addCurve(to: m(192, 18), control1: m(190, 128), control2: m(196, 75))
-        p.closeSubpath()
-        return p
-    }
-}
-
-struct CupHandle: Shape {
-    func path(in rect: CGRect) -> Path {
-        let m = { (x: CGFloat, y: CGFloat) -> CGPoint in cupPoint(x, y, rect) }
-        var p = Path()
-        p.move(to: m(184, 36))
-        p.addCurve(to: m(150, 128), control1: m(250, 20), control2: m(255, 120))
-        return p
-    }
-}
-
-struct CupStars: Shape {
-    func path(in rect: CGRect) -> Path {
-        let m = { (x: CGFloat, y: CGFloat) -> CGPoint in cupPoint(x, y, rect) }
-        // (centerX, centerY, radius, rotation)
-        let stars: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
-            (28, 84, 13, -0.3),
-            (95, 107, 19, 0.2),
-            (151, 84, 16, 0.5),
-            (54, 124, 15, 0.1),
-            (126, 146, 12, -0.2)
-        ]
-        var p = Path()
-        for (cx, cy, r, rot) in stars {
-            for i in 0..<10 {
-                let angle = rot + CGFloat(i) * .pi / 5 - .pi / 2
-                let radius = i % 2 == 0 ? r : r * 0.45
-                let pt = m(cx + cos(angle) * radius, cy + sin(angle) * radius)
-                if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
-            }
-            p.closeSubpath()
-        }
-        return p
-    }
-}
-
-#Preview {
+#Preview("Level 3") {
     NavigationStack { Level3View() }
 }
 
