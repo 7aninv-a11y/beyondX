@@ -54,15 +54,15 @@ struct Level3View: View {
     var maxIdeas: Int = 3
     var onDone: ([String]) -> Void = { _ in }
 
-    private let starsPerIdea = 10                          // NEW
+    private let starsPerIdea = 10
 
     @State private var ideas: [String] = []
     @State private var showEditor = false
     @State private var draft = ""
     @FocusState private var editorFocused: Bool
 
-    // NEW: نافذة المكافأة + النجوم وحركة النجمة الطايرة
-    @State private var showReward = false
+    // صفحة الاحتفال + النجوم وحركة النجمة الطايرة
+    @State private var showCelebration = false
     @State private var earnedStars = 0
     @State private var badgeFrame: CGRect = .zero
     @State private var cardFrame: CGRect = .zero
@@ -71,7 +71,7 @@ struct Level3View: View {
     @State private var starArrived = false
     @State private var badgeBump = false
 
-    private var totalStars: Int { stars + earnedStars }    // NEW
+    private var totalStars: Int { stars + earnedStars }
 
     private var canCreate: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -97,7 +97,7 @@ struct Level3View: View {
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
 
-            // NEW: النجمة اللي تطير للعداد
+            // النجمة اللي تطير للعداد
             if showFlyingStar {
                 Image(systemName: "star.fill")
                     .font(.system(size: 44))
@@ -109,26 +109,23 @@ struct Level3View: View {
                               : flyStart)
                     .allowsHitTesting(false)
             }
-        }
-        .coordinateSpace(.named("screen"))                 // NEW
-        .ignoresSafeArea(.keyboard, edges: .bottom)
-        .navigationBarBackButtonHidden(true)
-        .animation(.easeInOut(duration: 0.25), value: showEditor)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ideas)
-        // NEW: نافذة المكافأة بعد Done
-        .fullScreenCover(isPresented: $showReward) {
-            RewardPopupView(
-                xp: 10,
-                coins: 350,
-                stars: stars + ideas.count * starsPerIdea,   // نفس العدد حتى لو النجمة لسا تطير
-                tip: "Try looking at the object from a different place, like home, school or outdoors .",
-                onDone: {
-                    showReward = false
+
+            // صفحة الاحتفال داخل نفس الصفحة
+            if showCelebration {
+                CelebrationView(stars: stars + ideas.count * starsPerIdea) {
                     onDone(ideas)
                     dismiss()
                 }
-            )
+                .transition(.opacity)
+                .zIndex(10)
+            }
         }
+        .coordinateSpace(.named("screen"))
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .navigationBarBackButtonHidden(true)
+        .animation(.easeInOut(duration: 0.25), value: showEditor)
+        .animation(.easeInOut(duration: 0.35), value: showCelebration)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ideas)
     }
 
     // MARK: Main content
@@ -139,10 +136,10 @@ struct Level3View: View {
             HStack {
                 BackCircleButton { dismiss() }
                 Spacer()
-                StarBadge(count: totalStars)                       // CHANGED
-                    .scaleEffect(badgeBump ? 1.18 : 1)             // NEW: نبضة لما توصل النجمة
+                StarBadge(count: totalStars)
+                    .scaleEffect(badgeBump ? 1.18 : 1)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
-                        badgeFrame = $0                            // NEW: مكان العداد
+                        badgeFrame = $0
                     }
             }
             .padding(.horizontal, Theme.screenPadding)
@@ -179,7 +176,7 @@ struct Level3View: View {
             // MARK: Done
             ZStack {
                 if !ideas.isEmpty {
-                    Button(action: finish) {                       // CHANGED: يفتح المكافأة
+                    Button(action: finish) {
                         Text("Done")
                             .font(Theme.medium(14))
                             .foregroundColor(.white)
@@ -268,7 +265,7 @@ struct Level3View: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
-            cardFrame = $0                                         // NEW: مكان البطاقة
+            cardFrame = $0
         }
     }
 
@@ -288,12 +285,12 @@ struct Level3View: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, ideas.count < maxIdeas else { return }
         ideas.append(text)
-        flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)   // NEW
+        flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
         closeEditor()
-        flyStarToBadge()                                           // NEW
+        flyStarToBadge()
     }
 
-    // NEW: النجمة تطير من البطاقة للعداد، وبعدين يزيد ١٠
+    // النجمة تطير من البطاقة للعداد، وبعدين يزيد ١٠
     private func flyStarToBadge() {
         starArrived = false
         showFlyingStar = true
@@ -313,9 +310,130 @@ struct Level3View: View {
         }
     }
 
-    // NEW
     private func finish() {
-        showReward = true
+        showCelebration = true
+    }
+}
+
+// MARK: - Celebration page
+
+struct CelebrationView: View {
+    var stars: Int
+    var tip: String = "Creativity has no limits. Keep exploring your potential and thinking beyond!"
+    var onDone: () -> Void = {}
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    StarBadge(count: stars)
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 13)
+
+                Image("CelebrationMascot")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 236, height: 225)
+                    .padding(.top, 32)
+
+                Text("You Went Beyond!")
+                    .font(.system(size: 20, weight: .black))
+                    .fontWidth(.expanded)
+                    .foregroundColor(.black)
+                    .padding(.top, 29)
+
+                Text("You’ve Completed Your Creative Journey")
+                    .font(Theme.bold(14))
+                    .foregroundColor(Theme.orange)
+                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 4)
+                    .padding(.top, 16)
+
+                JourneyProgress()
+                    .padding(.top, 38)
+
+                TipCard(text: tip)
+                    .padding(.top, 41)
+
+                Spacer(minLength: 0)
+
+                Button(action: onDone) {
+                    Text("Done")
+                        .font(Theme.regular(17))
+                        .foregroundColor(.white)
+                        .frame(width: 144, height: 50)
+                        .background(Theme.orange)
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                }
+                .padding(.bottom, 25)
+            }
+        }
+    }
+}
+
+private struct JourneyProgress: View {
+    private let green = Color(hex: 0x3FBF94)
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Rectangle()
+                .fill(green)
+                .frame(width: 200, height: 3)
+                .padding(.top, 15)
+
+            HStack(spacing: 0) {
+                ForEach(1...3, id: \.self) { level in
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundColor(.black)
+                            .frame(width: 34, height: 34)
+                            .background(green)
+                            .clipShape(Circle())
+
+                        Text("Level \(level)")
+                            .font(Theme.medium(13))
+                            .foregroundColor(Color(hex: 0x373737))
+                    }
+                    .frame(width: 100)
+                }
+            }
+        }
+        .frame(width: 300)
+    }
+}
+
+private struct TipCard: View {
+    var text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            Image(systemName: "lightbulb.fill")
+                .font(.system(size: 26))
+                .foregroundColor(Theme.star)
+                .frame(width: 45, height: 39)
+                .padding(.top, 17)
+                .padding(.leading, 3)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tip :")
+                Text(text)
+            }
+            .font(Theme.regular(17))
+            .foregroundColor(Color(hex: 0x060606))
+            .padding(.top, 20)
+            .padding(.trailing, 20)
+        }
+        .frame(maxWidth: 304, alignment: .leading)
+        .frame(height: 143, alignment: .top)
+        .background(Theme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 25))
+        .overlay(RoundedRectangle(cornerRadius: 25).stroke(Color(hex: 0xE8E8E8), lineWidth: 1))
+        .shadow(color: .black.opacity(0.1), radius: 25, x: 0, y: 4)
     }
 }
 
@@ -346,7 +464,7 @@ struct StarBadge: View {
             Text("\(count)")
                 .font(Theme.bold(14))
                 .foregroundColor(Theme.title)
-                .contentTransition(.numericText(value: Double(count)))   // NEW: الرقم يتحرك
+                .contentTransition(.numericText(value: Double(count)))
         }
         .padding(.horizontal, 10)
         .frame(height: 29)
@@ -460,3 +578,6 @@ struct CupStars: Shape {
     NavigationStack { Level3View() }
 }
 
+#Preview("Celebration") {
+    CelebrationView(stars: 60)
+}
