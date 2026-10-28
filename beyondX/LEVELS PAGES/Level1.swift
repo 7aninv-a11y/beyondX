@@ -22,6 +22,10 @@ struct Level1View: View {
     @State private var showPause = false             // NEW: صفحة الـ Pause
     @FocusState private var isFocused: Bool
 
+    // NEW: هل الفكرة اللي كتبها اليوزر مكررة؟
+    // تكون false في البداية، وتصير true إذا كتب فكرة كتبها قبل
+    @State private var isDuplicate = false
+
     // NEW: النجوم وحركة النجمة الطايرة
     @State private var earnedStars = 0
     @State private var badgeFrame: CGRect = .zero
@@ -132,6 +136,7 @@ struct Level1View: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ideas)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isAddingIdea)   // NEW
+        .animation(.easeInOut(duration: 0.2), value: isDuplicate)                         // NEW: رسالة التكرار تطلع بنعومة
         .fullScreenCover(isPresented: $showReward) {
             RewardPopupView(
                 xp: 10,
@@ -244,6 +249,17 @@ struct Level1View: View {
                 .focused($isFocused)
                 .submitLabel(.done)
                 .onSubmit(addIdea)
+                // NEW: أول ما اليوزر يعدّل الكتابة، نخفي رسالة التكرار
+                .onChange(of: draft) {
+                    isDuplicate = false
+                }
+
+            // NEW: رسالة تطلع بس إذا الفكرة مكررة
+            if isDuplicate {
+                Text("You already wrote this idea, try a different one!")
+                    .font(.system(size: 11))
+                    .foregroundColor(.red)
+            }
 
             Spacer(minLength: 0)
         }
@@ -265,9 +281,33 @@ struct Level1View: View {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // NEW: تشيك هل الفكرة موجودة من قبل في قائمة الأفكار
+    // نحوّل الحروف كلها small عشان "Fly" و "fly" تنحسب نفس الفكرة
+    private func isAlreadyWritten(_ newIdea: String) -> Bool {
+        let newIdeaSmall = newIdea.lowercased()
+
+        for oldIdea in ideas {
+            if oldIdea.lowercased() == newIdeaSmall {
+                return true     // لقينا نفس الفكرة → مكررة
+            }
+        }
+        return false            // ما لقيناها → فكرة جديدة
+    }
+
     private func addIdea() {
+        // 1) نشيل المسافات الزايدة من البداية والنهاية
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 2) إذا فاضية أو وصلنا الحد (٣ أفكار) نوقف
         guard !trimmed.isEmpty, ideas.count < maxIdeas else { return }
+
+        // 3) NEW: إذا الفكرة مكررة → نطلع الرسالة ونوقف (ما نضيفها وما نعطي نجوم)
+        if isAlreadyWritten(trimmed) {
+            isDuplicate = true
+            return
+        }
+
+        // 4) الفكرة جديدة → نضيفها ونطيّر النجمة
         ideas.append(trimmed)
         flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)    // NEW
         closeCard()                                   // CHANGED: كانت draft = ""
@@ -298,6 +338,7 @@ struct Level1View: View {
     private func closeCard() {
         isFocused = false
         draft = ""
+        isDuplicate = false                           // NEW: نصفّر رسالة التكرار
         isAddingIdea = false
     }
 
