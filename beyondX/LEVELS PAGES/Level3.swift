@@ -51,19 +51,31 @@ struct Level3View: View {
     @State private var ideas: [String] = []
     @State private var showEditor = false
     @State private var draft = ""
+    @State private var showPause = false             // صفحة الـ Pause
+    @State private var isDuplicate = false           // الفكرة مكررة؟
+    @State private var showCelebration = false
     @FocusState private var editorFocused: Bool
 
-    // صفحة الاحتفال + النجوم وحركة النجمة الطايرة
-    @State private var showCelebration = false
+    // النجوم
     @State private var earnedStars = 0
-    @State private var badgeFrame: CGRect = .zero
-    @State private var cardFrame: CGRect = .zero
-    @State private var flyStart: CGPoint = .zero
-    @State private var showFlyingStar = false
-    @State private var starArrived = false
     @State private var badgeBump = false
 
+    // النجمة الطايرة (الحركة نفسها في LevelHelpers.swift)
+    @State private var isStarFlying = false
+    @State private var flyStart: CGPoint = .zero
+    @State private var badgeFrame: CGRect = .zero
+    @State private var cardFrame: CGRect = .zero
+
     private var totalStars: Int { stars + earnedStars }
+
+    // النقطة اللي توصل لها النجمة (مكان النجمة الصغيرة في العداد)
+    private var badgeStarPoint: CGPoint {
+        CGPoint(x: badgeFrame.minX + 19, y: badgeFrame.midY)
+    }
+
+    // شرط إكمال الليفل (نفس ليفل 1: ٣٠ نجمة = ٣ أفكار)
+    private let starsToComplete = 30
+    private var earnedInThisLevel: Int { ideas.count * starsPerIdea }
 
     private var canCreate: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -89,34 +101,38 @@ struct Level3View: View {
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
 
-            // النجمة اللي تطير للعداد
-            if showFlyingStar {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 44))
-                    .foregroundColor(Theme.star)
-                    .shadow(color: .orange.opacity(0.4), radius: 8)
-                    .scaleEffect(starArrived ? 0.4 : 1)
-                    .position(starArrived
-                              ? CGPoint(x: badgeFrame.minX + 19, y: badgeFrame.midY)
-                              : flyStart)
-                    .allowsHitTesting(false)
-            }
-
             // صفحة الاحتفال داخل نفس الصفحة
             if showCelebration {
-                CelebrationView(stars: stars + ideas.count * starsPerIdea) {
-                    onDone(ideas)
+                CelebrationView(
+                    stars: stars + ideas.count * starsPerIdea,
+                    tip: LevelTips.level3                         // التيب من LevelHelpers
+                ) {
+                    // يكمّل الليفل بس إذا جمع ٣٠ نجمة (يعني كتب ٣ أفكار)
+                    if earnedInThisLevel >= starsToComplete {
+                        onDone(ideas)
+                    }
                     dismiss()
                 }
                 .transition(.opacity)
                 .zIndex(10)
             }
         }
+        // النجمة الطايرة من الملف المشترك
+        .flyingStar(isFlying: $isStarFlying, from: flyStart, to: badgeStarPoint) {
+            starArrived()
+        }
         .coordinateSpace(.named("screen"))
+        .pausePage(isPresented: $showPause,
+                   onPause: { dismiss() },           // زر pause يرجع للماب
+                   onBack: { })                      // السهم يسكّر الـ Pause ويرجع لليفل
+        .onChange(of: showPause) { _, isShowing in   // يسكّر الكيبورد والبطاقة إذا انفتح الـ Pause
+            if isShowing { closeEditor() }
+        }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .navigationBarBackButtonHidden(true)
         .animation(.easeInOut(duration: 0.25), value: showEditor)
         .animation(.easeInOut(duration: 0.35), value: showCelebration)
+        .animation(.easeInOut(duration: 0.2), value: isDuplicate)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ideas)
     }
 
@@ -126,13 +142,11 @@ struct Level3View: View {
 
             // MARK: Top bar
             HStack {
-                BackCircleButton { dismiss() }
+                BackCircleButton { showPause = true }        // يفتح الـ Pause
                 Spacer()
                 StarBadge(count: totalStars)
-                    .scaleEffect(badgeBump ? 1.18 : 1)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
-                        badgeFrame = $0
-                    }
+                    .scaleEffect(badgeBump ? 1.18 : 1)       // نبضة لما توصل النجمة
+                    .readFrame { badgeFrame = $0 }           // نحفظ مكان العداد
             }
             .padding(.horizontal, Theme.screenPadding)
             .padding(.top, 13)
@@ -200,6 +214,7 @@ struct Level3View: View {
                         .font(Theme.regular(13))
                         .foregroundColor(Theme.title)
                         .lineLimit(1)
+                        .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity)
                         .frame(height: 45)
                         .background(Theme.note)
@@ -239,10 +254,17 @@ struct Level3View: View {
 
                 Spacer()
 
-                Button("create", action: createIdea)
-                    .font(Theme.medium(12))
-                    .foregroundColor(canCreate ? Theme.orange : Theme.dashed)
-                    .disabled(!canCreate)
+                // زر create برتقالي (نفس ليفل 1)
+                Button(action: createIdea) {
+                    Text("create")
+                        .font(Theme.medium(12))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 26)
+                        .background(Capsule().fill(Theme.orange))
+                }
+                .opacity(canCreate ? 1 : 0.4)        // باهت لين يكتب شي
+                .disabled(!canCreate)
             }
 
             TextEditor(text: $draft)
@@ -251,6 +273,17 @@ struct Level3View: View {
                 .scrollContentBackground(.hidden)
                 .focused($editorFocused)
                 .padding(.horizontal, -5)
+                // أول ما اليوزر يعدّل الكتابة، نخفي رسالة التكرار
+                .onChange(of: draft) {
+                    isDuplicate = false
+                }
+
+            // رسالة تطلع بس إذا الفكرة مكررة
+            if isDuplicate {
+                Text("You already wrote this idea, try a different one!")
+                    .font(Theme.regular(11))
+                    .foregroundColor(.red)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity)
@@ -258,49 +291,51 @@ struct Level3View: View {
         .background(Color.white.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("screen")) } action: {
-            cardFrame = $0
-        }
+        .readFrame { cardFrame = $0 }                // نحفظ مكان البطاقة
     }
 
     // MARK: Actions
     private func openEditor() {
         draft = ""
+        isDuplicate = false
         showEditor = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { editorFocused = true }
     }
 
     private func closeEditor() {
         editorFocused = false
+        draft = ""
+        isDuplicate = false
         showEditor = false
     }
 
     private func createIdea() {
+        // 1) نشيل المسافات الزايدة من البداية والنهاية
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 2) إذا فاضية أو وصلنا الحد نوقف
         guard !text.isEmpty, ideas.count < maxIdeas else { return }
+
+        // 3) إذا الفكرة مكررة → نطلع الرسالة ونوقف
+        if ideas.isAlreadyWritten(text) {
+            isDuplicate = true
+            return
+        }
+
+        // 4) الفكرة جديدة → نضيفها ونطيّر النجمة من مكان البطاقة
         ideas.append(text)
         flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
         closeEditor()
-        flyStarToBadge()
+        isStarFlying = true                          // هذا اللي يطيّر النجمة
     }
 
-    // النجمة تطير من البطاقة للعداد، وبعدين يزيد ١٠
-    private func flyStarToBadge() {
-        starArrived = false
-        showFlyingStar = true
-
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.7)) {
-                starArrived = true
-            } completion: {
-                showFlyingStar = false
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                    earnedStars += starsPerIdea
-                    badgeBump = true
-                } completion: {
-                    withAnimation(.spring(response: 0.3)) { badgeBump = false }
-                }
-            }
+    // لما توصل النجمة للعداد: يزيد ١٠ والعداد ينبض
+    private func starArrived() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+            earnedStars += starsPerIdea
+            badgeBump = true
+        } completion: {
+            withAnimation(.spring(response: 0.3)) { badgeBump = false }
         }
     }
 

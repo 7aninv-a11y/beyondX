@@ -22,6 +22,9 @@ enum LevelTips {
 
     // Level 2: This is not a stop sign…
     static let level2 = "Turn it upside down, zoom in, or squint! A simple shape can become anything when you stop seeing what it's supposed to be."
+
+    // Level 3: Think beyond the object!
+    static let level3 = "Don't stop at the obvious use! Look at the object's shape, size and material, then imagine it somewhere completely new."
 }
 
 

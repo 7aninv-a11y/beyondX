@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum JourneyLevel: Int, Identifiable {
-    case level1, level2
+    case level1, level2, level3
 
     var id: Int { rawValue }
 }
@@ -10,6 +10,7 @@ struct JourneyView: View {
     @State private var activeLevel: JourneyLevel?
     @State private var level1Completed = false
     @State private var level2Completed = false
+    @State private var level3Completed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,9 +53,13 @@ struct JourneyView: View {
                 LevelCardView(
                     levelNumber: "3",
                     title: "Think beyond the object!",
-                    state: .locked,
+                    state: level3Completed ? .completed :
+                        (level2Completed ? .active : .locked),
                     mascotImageName: "Robot with Idea"
-                ) {}
+                ) {
+                    guard level2Completed else { return }
+                    activeLevel = .level3
+                }
             }
             .padding(.leading, 28)
             .padding(.trailing, 37)
@@ -75,6 +80,12 @@ struct JourneyView: View {
             case .level2:
                 Level2View {
                     level2Completed = true
+                    activeLevel = nil
+                }
+
+            case .level3:
+                Level3View { _ in
+                    level3Completed = true
                     activeLevel = nil
                 }
             }
