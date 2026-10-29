@@ -52,7 +52,7 @@ struct JourneyView: View {
 
                 LevelCardView(
                     levelNumber: "3",
-                    title: "Think beyond the object!",
+                    title: "Think beyond....!",
                     state: level3Completed ? .completed :
                         (level2Completed ? .active : .locked),
                     mascotImageName: "Robot with Idea"

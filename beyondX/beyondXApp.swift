@@ -9,6 +9,12 @@ import SwiftUI
 
 @main
 struct beyondXApp: App {
+
+    // NEW: أول ما يفتح التطبيق نصفّر كل شي (النجوم + الأفكار + الإجابات)
+    init() {
+        GameStorage.resetAll()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

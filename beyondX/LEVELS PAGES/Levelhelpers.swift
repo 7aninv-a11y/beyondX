@@ -1,10 +1,3 @@
-//
-//  Levelhelpers.swift
-//  beyondX
-//
-//  Created by SAFIA  on 17/05/1448 AH.
-//
-
 import SwiftUI
 
 // =====================================================
@@ -17,14 +10,28 @@ import SwiftUI
 // كل ليفل له تيب خاص فيه، ونستخدمه كذا: LevelTips.level1
 enum LevelTips {
 
-    // Level 1: What if…?
-    static let level1 = "Don't stop at the first idea! Ask \"and then what?\" to see how one change can transform everyday life."
+    // Level 1: What if…? (الطيران)
+    static let level1 = "Amazing start! Your imagination is your superpower. Keep it flying!"
 
-    // Level 2: This is not a stop sign…
-    static let level2 = "Turn it upside down, zoom in, or squint! A simple shape can become anything when you stop seeing what it's supposed to be."
+    // Level 2: This is not a stop sign… (الأشكال)
+    static let level2 = "You turned something ordinary into something new. That's real creativity!"
 
-    // Level 3: Think beyond the object!
-    static let level3 = "Don't stop at the obvious use! Look at the object's shape, size and material, then imagine it somewhere completely new."
+    // Level 3: يطلع في صفحة الاحتفال (مو الريوارد)
+    static let level3 = "You did it! You're a creative thinker. Keep surprising the world with your ideas!"
+}
+// MARK: - 0.1) العبارات اللي تطلع في صفحة الـ Pause
+
+// كل ليفل له عبارة خاصة، ونستخدمها كذا: PauseMessages.level1
+enum PauseMessages {
+
+    // Level 1: What if…? (الطيران)
+    static let level1 = "Your ideas are still flying… stop now?"
+
+    // Level 2: This is not a stop sign… (الأشكال)
+    static let level2 = "Your masterpiece is still taking shape… stop now?"
+
+    // Level 3: Think beyond the object (الكوب)
+    static let level3 = "This cup still has hidden uses… stop now?"
 }
 
 

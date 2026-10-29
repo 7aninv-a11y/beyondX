@@ -9,9 +9,10 @@ struct Level1View: View {
     private let maxIdeas = 3
     private let prompt = "What if humans could fly for 10 minutes every day?"
 
-    var stars: Int = 0
+    var stars: Int = 0      // ما نستخدمه الحين (النجوم صارت محفوظة)، بس خليناه عشان صفحة الماب ما يطلع فيها خطأ
     var onComplete: () -> Void = {}
 
+    private let levelNumber = 1                      // NEW: رقم الليفل (نستخدمه في الحفظ)
     private let starsPerIdea = 10
 
     @Environment(\.dismiss) private var dismiss
@@ -21,10 +22,12 @@ struct Level1View: View {
     @State private var isAddingIdea = false          // يفتح بطاقة الإضافة
     @State private var showPause = false             // صفحة الـ Pause
     @State private var isDuplicate = false           // الفكرة مكررة؟
+    @State private var duplicateText = ""            // NEW: آخر فكرة انرفضت لأنها مكررة
     @FocusState private var isFocused: Bool
 
-    // النجوم
-    @State private var earnedStars = 0
+    // NEW: النجوم محفوظة في الجوال، تبقى حتى لو سكّر التطبيق
+    // وأي تغيير فيها ينحفظ تلقائياً
+    @AppStorage(GameStorage.starsKey) private var totalStars = 0
     @State private var badgeBump = false
 
     // النجمة الطايرة (الحركة نفسها في LevelHelpers.swift)
@@ -32,8 +35,6 @@ struct Level1View: View {
     @State private var flyStart: CGPoint = .zero
     @State private var badgeFrame: CGRect = .zero
     @State private var cardFrame: CGRect = .zero
-
-    private var totalStars: Int { stars + earnedStars }
 
     // النقطة اللي توصل لها النجمة (مكان النجمة الصغيرة في العداد)
     private var badgeStarPoint: CGPoint {
@@ -106,24 +107,37 @@ struct Level1View: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
+            .blur(radius: isAddingIdea ? 10 : 0)             // NEW: الصفحة ورا البطاقة تصير ضبابية (نفس ليفل ٣)
 
-            // بطاقة إضافة الفكرة
+            // بطاقة إضافة الفكرة (نفس مكان وشكل ليفل ٣)
             if isAddingIdea {
                 Color.black.opacity(0.08)
                     .ignoresSafeArea()
                     .onTapGesture(perform: closeCard)
+                    .transition(.opacity)
 
-                ideaCard
-                    .padding(.horizontal, 42)
-                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                VStack {
+                    ideaCard
+                        .padding(.leading, 40)               // CHANGED: نفس ليفل ٣
+                        .padding(.trailing, 50)
+                        .padding(.top, 259)
+                    Spacer()
+                }
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
         }
-        // النجمة الطايرة من الملف المشترك
+        .ignoresSafeArea(.keyboard, edges: .bottom)          // NEW: الكيبورد ما يدفع الصفحة لفوق (نفس ليفل ٣)
+        // NEW: النجمة الطايرة من الملف المشترك (سطر واحد بدل كل الكود القديم)
         .flyingStar(isFlying: $isStarFlying, from: flyStart, to: badgeStarPoint) {
             starArrived()
         }
         .coordinateSpace(.named("screen"))
+        // NEW: أول ما تفتح الصفحة نرجّع الأفكار المحفوظة
+        .onAppear {
+            ideas = GameStorage.loadIdeas(level: levelNumber)
+        }
         .pausePage(isPresented: $showPause,
+                   message: PauseMessages.level1,      // NEW: عبارة الـ Pause حق هالليفل
                    onPause: { dismiss() },           // زر pause يرجع للماب
                    onBack: { })                      // السهم يسكّر الـ Pause ويرجع لليفل
         .onChange(of: showPause) { _, isShowing in   // يسكّر الكيبورد والبطاقة إذا انفتح الـ Pause
@@ -136,8 +150,8 @@ struct Level1View: View {
             RewardPopupView(
                 xp: 10,
                 coins: 350,
-                stars: stars + ideas.count * starsPerIdea,
-                tip: LevelTips.level1,                       // التيب من LevelHelpers
+                stars: earnedInThisLevel,                    // CHANGED: النجوم اللي جمعها في هالليفل
+                tip: LevelTips.level1,                       // NEW: التيب من LevelHelpers
                 onDone: {
                     showReward = false
                     // يفتح الليفل اللي بعده بس إذا جمع ٣٠ نجمة (يعني كتب ٣ أفكار)
@@ -182,20 +196,14 @@ struct Level1View: View {
                     .overlay(Capsule().strokeBorder(Color.lockedBorder, lineWidth: 1))
             )
             .scaleEffect(badgeBump ? 1.18 : 1)       // نبضة لما توصل النجمة
-            .readFrame { badgeFrame = $0 }           // نحفظ مكان العداد
+            .readFrame { badgeFrame = $0 }           // NEW: نحفظ مكان العداد (من الملف المشترك)
         }
     }
 
     // MARK: Add field
 
     private var addField: some View {
-        Button {
-            isAddingIdea = true
-            // ننتظر شوي لين تطلع البطاقة، بعدين نفتح الكيبورد
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                isFocused = true
-            }
-        } label: {
+        Button(action: openCard) {                   // CHANGED: صارت دالة لحالها عشان نستخدمها مرتين
             Text("+ Add Text")
                 .font(.system(size: 17))
                 .foregroundColor(.gray)
@@ -221,7 +229,7 @@ struct Level1View: View {
                 Spacer()
 
                 // زر create برتقالي
-                Button(action: addIdea) {
+                Button { addIdea() } label: {        // CHANGED: عشان addIdea صار يستقبل نص
                     Text("create")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white)
@@ -233,16 +241,24 @@ struct Level1View: View {
                 .disabled(!canCreate)
             }
 
-            TextField(prompt, text: $draft, axis: .vertical)
+            // CHANGED: صار TextEditor نفس ليفل ٣ (بدل TextField)
+            TextEditor(text: $draft)
                 .font(.system(size: 13))
                 .foregroundColor(Color(hex: "111111"))
-                .lineLimit(1...6)
+                .scrollContentBackground(.hidden)
                 .focused($isFocused)
+                .padding(.horizontal, -5)
                 .submitLabel(.done)
-                .onSubmit(addIdea)
-                // أول ما اليوزر يعدّل الكتابة، نخفي رسالة التكرار
-                .onChange(of: draft) {
-                    isDuplicate = false
+                .onChange(of: draft) { _, newValue in
+                    if newValue.contains("\n") {
+                        // Enter انضغط: نشيل السطر الجديد ونرسل الفكرة
+                        let cleaned = newValue.replacingOccurrences(of: "\n", with: "")
+                        draft = cleaned
+                        addIdea(cleaned)
+                    } else if newValue.trimmingCharacters(in: .whitespacesAndNewlines) != duplicateText {
+                        // اليوزر عدّل الكتابة → نخفي رسالة التكرار
+                        isDuplicate = false
+                    }
                 }
 
             // رسالة تطلع بس إذا الفكرة مكررة
@@ -260,7 +276,7 @@ struct Level1View: View {
         .background(Color.white.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
-        .readFrame { cardFrame = $0 }                // نحفظ مكان البطاقة
+        .readFrame { cardFrame = $0 }                // NEW: نحفظ مكان البطاقة (من الملف المشترك)
     }
 
     // MARK: Actions
@@ -269,30 +285,53 @@ struct Level1View: View {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func addIdea() {
+    // NEW: نفتح البطاقة والكيبورد
+    private func openCard() {
+        draft = ""
+        isDuplicate = false
+        duplicateText = ""
+        isAddingIdea = true
+        // ننتظر شوي لين تطلع البطاقة، بعدين نفتح الكيبورد
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            isFocused = true
+        }
+    }
+
+    // CHANGED: صارت تستقبل نص (لما ينضغط Enter)، ولو ما فيه تاخذ اللي في draft
+    private func addIdea(_ raw: String? = nil) {
         // 1) نشيل المسافات الزايدة من البداية والنهاية
-        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = (raw ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
 
         // 2) إذا فاضية أو وصلنا الحد (٣ أفكار) نوقف
         guard !trimmed.isEmpty, ideas.count < maxIdeas else { return }
 
         // 3) إذا الفكرة مكررة → نطلع الرسالة ونوقف
+        //    NEW: isAlreadyWritten جاية من الملف المشترك
         if ideas.isAlreadyWritten(trimmed) {
+            duplicateText = trimmed                  // NEW
             isDuplicate = true
             return
         }
 
         // 4) الفكرة جديدة → نضيفها ونطيّر النجمة من مكان البطاقة
         ideas.append(trimmed)
+        GameStorage.saveIdeas(ideas, level: levelNumber)   // NEW: نحفظ الأفكار في الجوال
         flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
         closeCard()
-        isStarFlying = true                          // هذا اللي يطيّر النجمة
+        isStarFlying = true                          // NEW: هذا بس اللي يطيّر النجمة
+
+        // 5) NEW: نفتح البطاقة تلقائياً للفكرة اللي بعدها
+        if ideas.count < maxIdeas {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if !showReward && !showPause { openCard() }
+            }
+        }
     }
 
     // لما توصل النجمة للعداد: يزيد ١٠ والعداد ينبض
     private func starArrived() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-            earnedStars += starsPerIdea
+            totalStars += starsPerIdea               // CHANGED: يزيد وينحفظ تلقائياً
             badgeBump = true
         } completion: {
             withAnimation(.spring(response: 0.3)) { badgeBump = false }
@@ -303,6 +342,7 @@ struct Level1View: View {
         isFocused = false
         draft = ""
         isDuplicate = false
+        duplicateText = ""                           // NEW
         isAddingIdea = false
     }
 

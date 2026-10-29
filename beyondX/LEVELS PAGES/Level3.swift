@@ -42,10 +42,11 @@ extension Color {
 struct Level3View: View {
     @Environment(\.dismiss) private var dismiss
 
-    var stars: Int = 30
+    var stars: Int = 30      // ما نستخدمه الحين (النجوم صارت محفوظة)، بس خليناه عشان صفحة الماب ما يطلع فيها خطأ
     var maxIdeas: Int = 3
     var onDone: ([String]) -> Void = { _ in }
 
+    private let levelNumber = 3                      // NEW: رقم الليفل (نستخدمه في الحفظ)
     private let starsPerIdea = 10
 
     @State private var ideas: [String] = []
@@ -53,11 +54,13 @@ struct Level3View: View {
     @State private var draft = ""
     @State private var showPause = false             // صفحة الـ Pause
     @State private var isDuplicate = false           // الفكرة مكررة؟
+    @State private var duplicateText = ""            // آخر فكرة انرفضت لأنها مكررة
     @State private var showCelebration = false
     @FocusState private var editorFocused: Bool
 
-    // النجوم
-    @State private var earnedStars = 0
+    // NEW: النجوم محفوظة في الجوال (نفس المفتاح حق ليفل 1)
+    // فتكمل من الرقم اللي وصل له، وأي تغيير ينحفظ تلقائياً
+    @AppStorage(GameStorage.starsKey) private var totalStars = 0
     @State private var badgeBump = false
 
     // النجمة الطايرة (الحركة نفسها في LevelHelpers.swift)
@@ -65,8 +68,6 @@ struct Level3View: View {
     @State private var flyStart: CGPoint = .zero
     @State private var badgeFrame: CGRect = .zero
     @State private var cardFrame: CGRect = .zero
-
-    private var totalStars: Int { stars + earnedStars }
 
     // النقطة اللي توصل لها النجمة (مكان النجمة الصغيرة في العداد)
     private var badgeStarPoint: CGPoint {
@@ -104,11 +105,18 @@ struct Level3View: View {
             // صفحة الاحتفال داخل نفس الصفحة
             if showCelebration {
                 CelebrationView(
-                    stars: stars + ideas.count * starsPerIdea,
+                    stars: totalStars,                            // CHANGED: النجوم المحفوظة كلها
                     tip: LevelTips.level3                         // التيب من LevelHelpers
                 ) {
-                    // Done في صفحة الاحتفال: نرجع للجورني وكل الليفلز مفتوحة
-                    onDone(ideas)
+                    // يكمّل الليفل بس إذا جمع ٣٠ نجمة (يعني كتب ٣ أفكار)
+                    if earnedInThisLevel >= starsToComplete {
+                        onDone(ideas)
+
+                        // NEW: خلّص اللعبة كاملة → نصفّر كل شي
+                        // عشان لو فتح التطبيق مرة ثانية أو بغى يعيد، يبدأ من الصفر
+                        GameStorage.resetAll()           // النجوم + الأفكار + الإجابة (المحفوظة في الجوال)
+                        Level2Progress.shared.reset()    // رسم وأشكال ليفل ٢ (المحفوظة في الذاكرة)
+                    }
                     dismiss()
                 }
                 .transition(.opacity)
@@ -120,7 +128,12 @@ struct Level3View: View {
             starArrived()
         }
         .coordinateSpace(.named("screen"))
+        // NEW: أول ما تفتح الصفحة نرجّع الأفكار المحفوظة
+        .onAppear {
+            ideas = GameStorage.loadIdeas(level: levelNumber)
+        }
         .pausePage(isPresented: $showPause,
+                   message: PauseMessages.level3,      // NEW: عبارة الـ Pause حق هالليفل
                    onPause: { dismiss() },           // زر pause يرجع للماب
                    onBack: { })                      // السهم يسكّر الـ Pause ويرجع لليفل
         .onChange(of: showPause) { _, isShowing in   // يسكّر الكيبورد والبطاقة إذا انفتح الـ Pause
@@ -253,7 +266,7 @@ struct Level3View: View {
                 Spacer()
 
                 // زر create برتقالي (نفس ليفل 1)
-                Button(action: createIdea) {
+                Button { createIdea() } label: {
                     Text("create")
                         .font(Theme.medium(12))
                         .foregroundColor(.white)
@@ -271,9 +284,17 @@ struct Level3View: View {
                 .scrollContentBackground(.hidden)
                 .focused($editorFocused)
                 .padding(.horizontal, -5)
-                // أول ما اليوزر يعدّل الكتابة، نخفي رسالة التكرار
-                .onChange(of: draft) {
-                    isDuplicate = false
+                .submitLabel(.done)
+                .onChange(of: draft) { _, newValue in
+                    if newValue.contains("\n") {
+                        // Enter انضغط: نشيل السطر الجديد ونرسل الفكرة
+                        let cleaned = newValue.replacingOccurrences(of: "\n", with: "")
+                        draft = cleaned
+                        createIdea(cleaned)
+                    } else if newValue.trimmingCharacters(in: .whitespacesAndNewlines) != duplicateText {
+                        // اليوزر عدّل الكتابة → نخفي رسالة التكرار
+                        isDuplicate = false
+                    }
                 }
 
             // رسالة تطلع بس إذا الفكرة مكررة
@@ -296,6 +317,7 @@ struct Level3View: View {
     private func openEditor() {
         draft = ""
         isDuplicate = false
+        duplicateText = ""
         showEditor = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { editorFocused = true }
     }
@@ -304,33 +326,43 @@ struct Level3View: View {
         editorFocused = false
         draft = ""
         isDuplicate = false
+        duplicateText = ""
         showEditor = false
     }
 
-    private func createIdea() {
+    private func createIdea(_ raw: String? = nil) {
         // 1) نشيل المسافات الزايدة من البداية والنهاية
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = (raw ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
 
         // 2) إذا فاضية أو وصلنا الحد نوقف
         guard !text.isEmpty, ideas.count < maxIdeas else { return }
 
         // 3) إذا الفكرة مكررة → نطلع الرسالة ونوقف
         if ideas.isAlreadyWritten(text) {
+            duplicateText = text
             isDuplicate = true
             return
         }
 
         // 4) الفكرة جديدة → نضيفها ونطيّر النجمة من مكان البطاقة
         ideas.append(text)
+        GameStorage.saveIdeas(ideas, level: levelNumber)   // NEW: نحفظ الأفكار في الجوال
         flyStart = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
         closeEditor()
         isStarFlying = true                          // هذا اللي يطيّر النجمة
+
+        // 5) نفتح البطاقة تلقائياً للفكرة اللي بعدها
+        if ideas.count < maxIdeas {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if !showCelebration && !showPause { openEditor() }
+            }
+        }
     }
 
     // لما توصل النجمة للعداد: يزيد ١٠ والعداد ينبض
     private func starArrived() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-            earnedStars += starsPerIdea
+            totalStars += starsPerIdea               // CHANGED: يزيد وينحفظ تلقائياً
             badgeBump = true
         } completion: {
             withAnimation(.spring(response: 0.3)) { badgeBump = false }

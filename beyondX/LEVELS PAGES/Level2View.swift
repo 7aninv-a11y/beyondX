@@ -8,13 +8,15 @@ enum Level2Theme {
     static let cream = Color(red: 0.985, green: 0.975, blue: 0.93)
     static let highlight = Color(red: 0.80, green: 0.85, blue: 0.62)
     static let orange = Color(red: 0.85, green: 0.38, blue: 0.04)
+    static let answerRed = Color(red: 0.68, green: 0.14, blue: 0.10)
     static let canvasBorder = Color.black.opacity(0.14)
 }
 
 enum Level2Layout {
     static let maxCanvas: CGFloat = 520
-    static let sheetHeight: CGFloat = 240
+    static let panelHeight: CGFloat = 260
     static let handleOffset: CGFloat = 14
+    static let maxAnswerLength = 20
     static let canvasSpace = "EditorCanvasSpace"
 }
 
@@ -25,10 +27,21 @@ enum Level2Shadow {
     static let y: CGFloat = 4
 }
 
+private extension View {
+    /// The 56% shadow shared by the stop sign and every user shape.
+    func level2Shadow() -> some View {
+        shadow(color: Level2Shadow.color, radius: Level2Shadow.radius,
+               x: Level2Shadow.x, y: Level2Shadow.y)
+    }
+}
+
 // MARK: - Shape Kind
 
 enum ShapeKind: String, CaseIterable, Identifiable {
-    case circle, square, star, triangle, pentagon, parallelogram, semicircle, rectangle, octagon
+    case circle, square, star, triangle
+    case pentagon, parallelogram, semicircle, rectangle
+    case tallRectangle, heart, diamond, oval
+    case octagon
 
     var id: String { rawValue }
 
@@ -47,6 +60,10 @@ enum ShapeKind: String, CaseIterable, Identifiable {
         case .parallelogram: return "Parallelogram"
         case .semicircle: return "Semicircle"
         case .rectangle: return "Rectangle"
+        case .tallRectangle: return "Tall rectangle"
+        case .heart: return "Heart"
+        case .diamond: return "Diamond"
+        case .oval: return "Oval"
         case .octagon: return "Stop sign"
         }
     }
@@ -62,6 +79,10 @@ enum ShapeKind: String, CaseIterable, Identifiable {
         case .parallelogram: return CGSize(width: 0.30, height: 0.16)
         case .semicircle: return CGSize(width: 0.30, height: 0.15)
         case .rectangle: return CGSize(width: 0.30, height: 0.18)
+        case .tallRectangle: return CGSize(width: 0.14, height: 0.26)
+        case .heart: return CGSize(width: 0.26, height: 0.24)
+        case .diamond: return CGSize(width: 0.24, height: 0.24)
+        case .oval: return CGSize(width: 0.30, height: 0.20)
         case .octagon: return CGSize(width: 0.53, height: 0.53)
         }
     }
@@ -93,6 +114,7 @@ enum PaletteColor: String, CaseIterable, Identifiable {
 // MARK: - Canvas Item (user-created shape)
 
 /// One independent user shape. Position and size are normalized to the canvas side.
+/// `order` is its place in the chronological stack (shapes and stroke layers share one counter).
 struct CanvasItem: Identifiable, Equatable {
     let id: UUID
     var kind: ShapeKind
@@ -100,19 +122,22 @@ struct CanvasItem: Identifiable, Equatable {
     var center: CGPoint
     var scale: CGFloat
     var rotation: CGFloat // radians
+    var order: Int
 
     init(id: UUID = UUID(),
          kind: ShapeKind,
          palette: PaletteColor,
          center: CGPoint,
          scale: CGFloat = 1,
-         rotation: CGFloat = 0) {
+         rotation: CGFloat = 0,
+         order: Int = 0) {
         self.id = id
         self.kind = kind
         self.palette = palette
         self.center = center
         self.scale = scale
         self.rotation = rotation
+        self.order = order
     }
 
     var size: CGSize {
@@ -147,12 +172,43 @@ struct CanvasItem: Identifiable, Equatable {
     }
 }
 
+// MARK: - Stroke Layers & Chronological Stack
+
+/// A group of pen strokes drawn between two shape insertions.
+struct StrokeLayer: Identifiable {
+    let id = UUID()
+    var order: Int
+    var drawing: PKDrawing
+    /// Changes whenever the drawing changes, so the cached image knows when to re-render.
+    var version = UUID()
+}
+
+/// One entry of the back-to-front stack: either a shape or a sealed group of strokes.
+enum CanvasLayer: Identifiable {
+    case shape(CanvasItem)
+    case strokes(StrokeLayer)
+
+    var id: UUID {
+        switch self {
+        case .shape(let item): return item.id
+        case .strokes(let layer): return layer.id
+        }
+    }
+
+    var order: Int {
+        switch self {
+        case .shape(let item): return item.order
+        case .strokes(let layer): return layer.order
+        }
+    }
+}
+
 // MARK: - History Snapshot
 
 /// Everything the user can change. The original stop sign is NOT part of this.
 struct EditorSnapshot {
     var items: [CanvasItem]
-    var drawing: PKDrawing
+    var layers: [StrokeLayer]
 }
 
 // MARK: - Shape Paths
@@ -162,9 +218,9 @@ struct KindShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         switch kind {
-        case .circle:
+        case .circle, .oval:
             return Path(ellipseIn: rect)
-        case .square, .rectangle:
+        case .square, .rectangle, .tallRectangle:
             return Path(rect)
         case .star:
             return starPath(in: rect)
@@ -176,6 +232,10 @@ struct KindShape: Shape {
             return parallelogramPath(in: rect)
         case .semicircle:
             return semicirclePath(in: rect)
+        case .heart:
+            return heartPath(in: rect)
+        case .diamond:
+            return diamondPath(in: rect)
         case .octagon:
             return octagonPath(in: rect)
         }
@@ -197,6 +257,14 @@ struct KindShape: Shape {
         let right = CGPoint(x: rect.maxX, y: rect.maxY)
         let left = CGPoint(x: rect.minX, y: rect.maxY)
         return polygon([top, right, left])
+    }
+
+    private func diamondPath(in rect: CGRect) -> Path {
+        let top = CGPoint(x: rect.midX, y: rect.minY)
+        let right = CGPoint(x: rect.maxX, y: rect.midY)
+        let bottom = CGPoint(x: rect.midX, y: rect.maxY)
+        let left = CGPoint(x: rect.minX, y: rect.midY)
+        return polygon([top, right, bottom, left])
     }
 
     private func parallelogramPath(in rect: CGRect) -> Path {
@@ -223,10 +291,11 @@ struct KindShape: Shape {
 
     private func regularPolygon(sides: Int, in rect: CGRect) -> Path {
         let radius: CGFloat = min(rect.width, rect.height) / 2
+        let start: CGFloat = -(CGFloat.pi / 2)
+        let step: CGFloat = 2 * CGFloat.pi / CGFloat(sides)
         var points: [CGPoint] = []
         for i in 0..<sides {
-            let step: CGFloat = 2 * CGFloat.pi / CGFloat(sides)
-            let angle: CGFloat = -CGFloat.pi / 2 + CGFloat(i) * step
+            let angle: CGFloat = start + CGFloat(i) * step
             let x: CGFloat = rect.midX + radius * cos(angle)
             let y: CGFloat = rect.midY + radius * sin(angle)
             points.append(CGPoint(x: x, y: y))
@@ -237,10 +306,12 @@ struct KindShape: Shape {
     private func starPath(in rect: CGRect) -> Path {
         let outer: CGFloat = min(rect.width, rect.height) / 2
         let inner: CGFloat = outer * 0.42
+        let start: CGFloat = -(CGFloat.pi / 2)
+        let step: CGFloat = CGFloat.pi / 5
         var points: [CGPoint] = []
         for i in 0..<10 {
             let radius: CGFloat = (i % 2 == 0) ? outer : inner
-            let angle: CGFloat = -CGFloat.pi / 2 + CGFloat(i) * CGFloat.pi / 5
+            let angle: CGFloat = start + CGFloat(i) * step
             let x: CGFloat = rect.midX + radius * cos(angle)
             let y: CGFloat = rect.midY + radius * sin(angle)
             points.append(CGPoint(x: x, y: y))
@@ -251,24 +322,52 @@ struct KindShape: Shape {
     /// Flat edge on top, curve below.
     private func semicirclePath(in rect: CGRect) -> Path {
         let steps = 48
+        let halfWidth: CGFloat = rect.width / 2
         var points: [CGPoint] = []
         for i in 0...steps {
             let t: CGFloat = CGFloat.pi * CGFloat(i) / CGFloat(steps)
-            let x: CGFloat = rect.midX + rect.width / 2 * cos(t)
+            let x: CGFloat = rect.midX + halfWidth * cos(t)
             let y: CGFloat = rect.minY + rect.height * sin(t)
             points.append(CGPoint(x: x, y: y))
         }
         return polygon(points)
     }
+
+    private func heartPath(in rect: CGRect) -> Path {
+        let w: CGFloat = rect.width
+        let h: CGFloat = rect.height
+        let bottom = CGPoint(x: rect.midX, y: rect.maxY)
+        let leftSide = CGPoint(x: rect.minX, y: rect.minY + h * 0.32)
+        let dip = CGPoint(x: rect.midX, y: rect.minY + h * 0.28)
+        let rightSide = CGPoint(x: rect.maxX, y: rect.minY + h * 0.32)
+
+        let leftLow = CGPoint(x: rect.midX - w * 0.2, y: rect.maxY - h * 0.2)
+        let leftMid = CGPoint(x: rect.minX, y: rect.midY + h * 0.1)
+        let leftTop = CGPoint(x: rect.minX, y: rect.minY - h * 0.05)
+        let leftDip = CGPoint(x: rect.midX - w * 0.08, y: rect.minY - h * 0.02)
+        let rightDip = CGPoint(x: rect.midX + w * 0.08, y: rect.minY - h * 0.02)
+        let rightTop = CGPoint(x: rect.maxX, y: rect.minY - h * 0.05)
+        let rightMid = CGPoint(x: rect.maxX, y: rect.midY + h * 0.1)
+        let rightLow = CGPoint(x: rect.midX + w * 0.2, y: rect.maxY - h * 0.2)
+
+        var path = Path()
+        path.move(to: bottom)
+        path.addCurve(to: leftSide, control1: leftLow, control2: leftMid)
+        path.addCurve(to: dip, control1: leftTop, control2: leftDip)
+        path.addCurve(to: rightSide, control1: rightDip, control2: rightTop)
+        path.addCurve(to: bottom, control1: rightMid, control2: rightLow)
+        path.closeSubpath()
+        return path
+    }
 }
 
-// MARK: - Editor Model (user shapes + drawing + history)
+// MARK: - Editor Model (user shapes + stroke layers + history)
 
 /// Owns everything the user can edit. The original stop sign is deliberately not stored here.
 @Observable
 final class EditorModel {
     var items: [CanvasItem] = []
-    var drawing = PKDrawing()
+    var layers: [StrokeLayer] = []
     var drawingRevision = 0
     var selectedID: UUID?
     var paletteID: UUID?
@@ -280,15 +379,46 @@ final class EditorModel {
     private(set) var undoStack: [EditorSnapshot] = []
     private(set) var redoStack: [EditorSnapshot] = []
 
+    /// Shared counter that orders shapes and stroke layers chronologically.
+    private var nextOrder = 1
+
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
-    var hasDrawing: Bool { !drawing.strokes.isEmpty }
+    var hasDrawing: Bool { layers.contains { !$0.drawing.strokes.isEmpty } }
 
-    /// True when the canvas holds any user-made content. Drives Done and the trash button.
+    /// True when the canvas holds any user-made content. Drives the bottom button and the trash button.
     var hasEdits: Bool { !items.isEmpty || hasDrawing }
 
     private var current: EditorSnapshot {
-        EditorSnapshot(items: items, drawing: drawing)
+        EditorSnapshot(items: items, layers: layers)
+    }
+
+    // MARK: Chronological stack
+
+    private var topShapeOrder: Int {
+        items.map { $0.order }.max() ?? 0
+    }
+
+    /// The newest stroke layer, if it is newer than every shape. This one is edited live by PencilKit.
+    private var activeIndex: Int? {
+        guard let last = layers.indices.last, layers[last].order > topShapeOrder else { return nil }
+        return last
+    }
+
+    /// Drawing shown in the live `PKCanvasView`.
+    var activeDrawing: PKDrawing {
+        guard let index = activeIndex else { return PKDrawing() }
+        return layers[index].drawing
+    }
+
+    /// Shapes and sealed stroke layers, back to front. The live canvas is drawn above all of these.
+    var stack: [CanvasLayer] {
+        let sealedCount: Int = activeIndex ?? layers.count
+        var result: [CanvasLayer] = items.map { CanvasLayer.shape($0) }
+        for layer in layers.prefix(sealedCount) {
+            result.append(CanvasLayer.strokes(layer))
+        }
+        return result.sorted { $0.order < $1.order }
     }
 
     // MARK: History
@@ -316,7 +446,7 @@ final class EditorModel {
         live = nil
         liveBase = nil
         items = snapshot.items
-        drawing = snapshot.drawing
+        layers = snapshot.layers
         drawingRevision += 1
         if let id = selectedID, !items.contains(where: { $0.id == id }) { selectedID = nil }
         if let id = paletteID, !items.contains(where: { $0.id == id }) { paletteID = nil }
@@ -324,11 +454,20 @@ final class EditorModel {
 
     // MARK: Drawing
 
+    /// Called by PencilKit after every stroke. Updates the newest layer or starts a new one.
     func drawingChanged(to newDrawing: PKDrawing) {
-        let old: Data = drawing.dataRepresentation()
+        let old: Data = activeDrawing.dataRepresentation()
         let new: Data = newDrawing.dataRepresentation()
         guard old != new else { return }
-        commit { drawing = newDrawing }
+        commit {
+            if let index = activeIndex {
+                layers[index].drawing = newDrawing
+                layers[index].version = UUID()
+            } else {
+                layers.append(StrokeLayer(order: nextOrder, drawing: newDrawing))
+                nextOrder += 1
+            }
+        }
     }
 
     /// Removes every user shape and stroke as one undoable step. The stop sign is unaffected.
@@ -336,13 +475,13 @@ final class EditorModel {
         guard hasEdits else { return }
         commit {
             items = []
-            drawing = PKDrawing()
-            drawingRevision += 1
+            layers = []
             selectedID = nil
             paletteID = nil
         }
         live = nil
         liveBase = nil
+        drawingRevision += 1
     }
 
     // MARK: Geometry
@@ -374,13 +513,16 @@ final class EditorModel {
         let stagger: CGFloat = CGFloat(items.count % 5) - 2
         let fallback = CGPoint(x: 0.5 + stagger * 0.04, y: 0.5 + stagger * 0.04)
         let proposed: CGPoint = center ?? fallback
-        let raw = CanvasItem(kind: kind, palette: .white, center: proposed)
+        let raw = CanvasItem(kind: kind, palette: .white, center: proposed, order: nextOrder)
+        nextOrder += 1
         let item: CanvasItem = Self.normalized(raw)
         commit {
             items.append(item)
             selectedID = item.id
             paletteID = nil
         }
+        // The newest stroke layer is now below this shape, so the live canvas starts empty.
+        drawingRevision += 1
     }
 
     /// One-shot change (used by accessibility actions and recoloring).
@@ -393,8 +535,16 @@ final class EditorModel {
         commit { items[index] = updated }
     }
 
+    func rotate(_ id: UUID, by delta: CGFloat) {
+        transform(id) { item in item.rotation += delta }
+    }
+
+    func resize(_ id: UUID, by factor: CGFloat) {
+        transform(id) { item in item.scale *= factor }
+    }
+
     func setColor(_ id: UUID, to palette: PaletteColor) {
-        transform(id) { $0.palette = palette }
+        transform(id) { item in item.palette = palette }
     }
 
     func deleteItem(_ id: UUID) {
@@ -404,6 +554,8 @@ final class EditorModel {
             if selectedID == id { selectedID = nil }
             if paletteID == id { paletteID = nil }
         }
+        // Removing the newest shape can make the newest stroke layer live again.
+        drawingRevision += 1
     }
 
     // MARK: Live gestures (one undo step per gesture)
@@ -472,7 +624,7 @@ struct DrawingCanvas: UIViewRepresentable {
         context.coordinator.toolPicker.addObserver(canvas)
 
         context.coordinator.isApplying = true
-        canvas.drawing = model.drawing
+        canvas.drawing = model.activeDrawing
         context.coordinator.isApplying = false
         context.coordinator.appliedRevision = revision
         return canvas
@@ -482,7 +634,7 @@ struct DrawingCanvas: UIViewRepresentable {
         canvas.isUserInteractionEnabled = isEnabled
         if context.coordinator.appliedRevision != revision {
             context.coordinator.isApplying = true
-            canvas.drawing = model.drawing
+            canvas.drawing = model.activeDrawing
             context.coordinator.isApplying = false
             context.coordinator.appliedRevision = revision
         }
@@ -527,6 +679,29 @@ struct DrawingCanvas: UIViewRepresentable {
     }
 }
 
+// MARK: - Sealed Strokes (read-only image of an older stroke layer)
+
+struct StrokeImageView: View, Equatable {
+    let layer: StrokeLayer
+    let side: CGFloat
+
+    @Environment(\.displayScale) private var displayScale
+
+    static func == (lhs: StrokeImageView, rhs: StrokeImageView) -> Bool {
+        lhs.layer.id == rhs.layer.id && lhs.layer.version == rhs.layer.version && lhs.side == rhs.side
+    }
+
+    var body: some View {
+        let bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        let image: UIImage = layer.drawing.image(from: bounds, scale: displayScale)
+        return Image(uiImage: image)
+            .resizable()
+            .frame(width: side, height: side)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Original Stop Sign
 
 /// The activity's starting element. It is not an item, so it cannot be selected, moved or cleared.
@@ -535,12 +710,10 @@ struct StopSignView: View {
 
     var body: some View {
         let size: CGSize = ShapeKind.octagon.defaultSize
-        let width: CGFloat = size.width * side
-        let height: CGFloat = size.height * side
         KindShape(kind: .octagon)
             .fill(PaletteColor.red.color)
-            .frame(width: width, height: height)
-            .shadow(color: Level2Shadow.color, radius: Level2Shadow.radius, x: Level2Shadow.x, y: Level2Shadow.y)
+            .frame(width: size.width * side, height: size.height * side)
+            .level2Shadow()
             .position(x: side / 2, y: side / 2)
             .allowsHitTesting(false)
             .accessibilityLabel("Red stop sign")
@@ -553,7 +726,6 @@ struct CanvasCard: View {
     let model: EditorModel
     let side: CGFloat
     let isDrawing: Bool
-    let onBackgroundTap: () -> Void
     let onDropShape: (ShapeKind, CGPoint) -> Void
 
     @State private var isDropTargeted = false
@@ -593,12 +765,14 @@ struct CanvasCard: View {
             }
     }
 
+    /// Back to front: background, stop sign, then shapes and sealed strokes in the order they were
+    /// made, and finally the live PencilKit canvas for the newest strokes.
     private var content: some View {
         ZStack(alignment: .topLeading) {
             backgroundTapLayer
             StopSignView(side: side)
-            ForEach(model.items) { item in
-                ShapeItemView(item: model.displayed(item), side: side, model: model)
+            ForEach(model.stack) { layer in
+                layerView(layer)
             }
             DrawingCanvas(model: model,
                           revision: model.drawingRevision,
@@ -607,13 +781,20 @@ struct CanvasCard: View {
         }
     }
 
+    @ViewBuilder
+    private func layerView(_ layer: CanvasLayer) -> some View {
+        switch layer {
+        case .shape(let item):
+            ShapeItemView(item: model.displayed(item), side: side, model: model)
+        case .strokes(let strokes):
+            StrokeImageView(layer: strokes, side: side).equatable()
+        }
+    }
+
     private var backgroundTapLayer: some View {
         Color.clear
             .contentShape(Rectangle())
-            .onTapGesture {
-                model.select(nil)
-                onBackgroundTap()
-            }
+            .onTapGesture { model.select(nil) }
     }
 
     private var border: some View {
@@ -654,12 +835,8 @@ struct ShapeItemView: View {
 
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 4, coordinateSpace: .named(Level2Layout.canvasSpace))
-            .onChanged { value in
-                handleDragChanged(value)
-            }
-            .onEnded { _ in
-                model.commitLive()
-            }
+            .onChanged { value in handleDragChanged(value) }
+            .onEnded { _ in model.commitLive() }
     }
 
     private func handleDragChanged(_ value: DragGesture.Value) {
@@ -694,7 +871,7 @@ struct ShapeItemView: View {
             .frame(width: width, height: height)
             .contentShape(KindShape(kind: item.kind))
             .rotationEffect(Angle(radians: Double(item.rotation)))
-            .shadow(color: Level2Shadow.color, radius: Level2Shadow.radius, x: Level2Shadow.x, y: Level2Shadow.y)
+            .level2Shadow()
     }
 
     var body: some View {
@@ -714,19 +891,20 @@ struct ShapeItemView: View {
                 model.setColor(item.id, to: chosen)
                 model.paletteID = nil
             },
-            onDelete: {
-                model.deleteItem(item.id)
-            }
+            onDelete: { model.deleteItem(item.id) }
         )
         .presentationCompactAdaptation(.popover)
     }
 }
 
-/// Accessibility for a shape, kept separate so the view body stays easy to type-check.
+/// Accessibility for a shape. Each action is a single call into the model.
 struct ShapeAccessibility: ViewModifier {
     let item: CanvasItem
     let model: EditorModel
     let isSelected: Bool
+
+    private let rotationStep: CGFloat = .pi / 12
+    private let resizeFactor: CGFloat = 1.15
 
     private var traits: AccessibilityTraits {
         isSelected ? [.isButton, .isSelected] : [.isButton]
@@ -738,22 +916,16 @@ struct ShapeAccessibility: ViewModifier {
             .accessibilityLabel("\(item.palette.name) \(item.kind.title)")
             .accessibilityHint("Double tap to select. Double tap again to change its color.")
             .accessibilityAddTraits(traits)
-            .accessibilityAction(named: "Change Color") {
-                model.select(item.id)
-                model.paletteID = item.id
-            }
-            .accessibilityAction(named: "Rotate 15 degrees") {
-                model.transform(item.id) { $0.rotation += CGFloat.pi / 12 }
-            }
-            .accessibilityAction(named: "Make Larger") {
-                model.transform(item.id) { $0.scale *= 1.15 }
-            }
-            .accessibilityAction(named: "Make Smaller") {
-                model.transform(item.id) { $0.scale /= 1.15 }
-            }
-            .accessibilityAction(named: "Delete Shape") {
-                model.deleteItem(item.id)
-            }
+            .accessibilityAction(named: "Change Color") { changeColor() }
+            .accessibilityAction(named: "Rotate 15 degrees") { model.rotate(item.id, by: rotationStep) }
+            .accessibilityAction(named: "Make Larger") { model.resize(item.id, by: resizeFactor) }
+            .accessibilityAction(named: "Make Smaller") { model.resize(item.id, by: 1 / resizeFactor) }
+            .accessibilityAction(named: "Delete Shape") { model.deleteItem(item.id) }
+    }
+
+    private func changeColor() {
+        model.select(item.id)
+        model.paletteID = item.id
     }
 }
 
@@ -792,10 +964,16 @@ struct SelectionOverlay: View {
     private func resizeChanged(_ value: DragGesture.Value) {
         guard side > 0, let base = model.beginLive(item.id) else { return }
         let c = CGPoint(x: base.center.x * side, y: base.center.y * side)
-        let diagonal: CGFloat = hypot(base.size.width, base.size.height) * side / 2
+        let baseWidth: CGFloat = base.size.width * side
+        let baseHeight: CGFloat = base.size.height * side
+        let diagonal: CGFloat = hypot(baseWidth, baseHeight) / 2
         let cornerDistance: CGFloat = max(diagonal, 1)
-        let startDistance: CGFloat = hypot(value.startLocation.x - c.x, value.startLocation.y - c.y)
-        let distance: CGFloat = hypot(value.location.x - c.x, value.location.y - c.y)
+        let startDX: CGFloat = value.startLocation.x - c.x
+        let startDY: CGFloat = value.startLocation.y - c.y
+        let nowDX: CGFloat = value.location.x - c.x
+        let nowDY: CGFloat = value.location.y - c.y
+        let startDistance: CGFloat = hypot(startDX, startDY)
+        let distance: CGFloat = hypot(nowDX, nowDY)
         let newCorner: CGFloat = cornerDistance + (distance - startDistance)
         let factor: CGFloat = newCorner / cornerDistance
         model.updateLive { live in
@@ -847,8 +1025,8 @@ struct SelectionOverlay: View {
             .accessibilityLabel("Rotate shape")
             .accessibilityHint("Swipe up or down to rotate.")
             .accessibilityAdjustableAction { direction in
-                let delta: CGFloat = (direction == .increment) ? CGFloat.pi / 12 : -CGFloat.pi / 12
-                model.transform(item.id) { $0.rotation += delta }
+                let step: CGFloat = CGFloat.pi / 12
+                model.rotate(item.id, by: direction == .increment ? step : -step)
             }
     }
 
@@ -861,8 +1039,8 @@ struct SelectionOverlay: View {
             .accessibilityLabel("Resize shape")
             .accessibilityHint("Swipe up or down to resize.")
             .accessibilityAdjustableAction { direction in
-                let factor: CGFloat = (direction == .increment) ? 1.15 : 1 / 1.15
-                model.transform(item.id) { $0.scale *= factor }
+                let factor: CGFloat = 1.15
+                model.resize(item.id, by: direction == .increment ? factor : 1 / factor)
             }
     }
 
@@ -883,11 +1061,22 @@ struct ColorPalettePopover: View {
     let onPick: (PaletteColor) -> Void
     let onDelete: () -> Void
 
-    private let columns: [GridItem] = Array(repeating: GridItem(.fixed(44), spacing: 6), count: 5)
+    private let swatchSize: CGFloat = 44
+    private let gap: CGFloat = 6
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.fixed(swatchSize), spacing: gap), count: 5)
+    }
+
+    private var popoverWidth: CGFloat {
+        let swatches: CGFloat = swatchSize * 5
+        let gaps: CGFloat = gap * 4
+        return swatches + gaps + 28
+    }
 
     var body: some View {
         VStack(spacing: 6) {
-            LazyVGrid(columns: columns, spacing: 6) {
+            LazyVGrid(columns: columns, spacing: gap) {
                 ForEach(PaletteColor.allCases) { palette in
                     swatch(palette)
                 }
@@ -899,7 +1088,7 @@ struct ColorPalettePopover: View {
             }
         }
         .padding(14)
-        .frame(width: 5 * 44 + 4 * 6 + 28)
+        .frame(width: popoverWidth)
     }
 
     private func swatch(_ palette: PaletteColor) -> some View {
@@ -1017,24 +1206,65 @@ struct EditorToolbar: View {
     }
 }
 
-// MARK: - Shape Picker Sheet
+// MARK: - Shapes Panel (bottom panel in the same hierarchy as the toolbar)
 
-struct ShapePickerSheet: View {
+struct ShapesPanel: View {
     /// Kind of the shape currently selected on the canvas, if any. Shown with an orange ring.
     let selectedKind: ShapeKind?
     let onSelect: (ShapeKind) -> Void
+    let onDismiss: () -> Void
 
     private let columns: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
 
     var body: some View {
+        VStack(spacing: 0) {
+            handle
+            ScrollView {
+                grid
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: Level2Layout.panelHeight, alignment: .top)
+        .background { panelBackground }
+    }
+
+    private var panelBackground: some View {
+        UnevenRoundedRectangle(topLeadingRadius: 28,
+                               bottomLeadingRadius: 0,
+                               bottomTrailingRadius: 0,
+                               topTrailingRadius: 28,
+                               style: .continuous)
+            .fill(Color(white: 0.97))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: -2)
+            .ignoresSafeArea(edges: .bottom)
+    }
+
+    private var handle: some View {
+        Button(action: onDismiss) {
+            Capsule()
+                .fill(Color.black.opacity(0.2))
+                .frame(width: 36, height: 5)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 12).onEnded { value in
+                if value.translation.height > 30 { onDismiss() }
+            }
+        )
+        .accessibilityLabel("Close shapes")
+    }
+
+    private var grid: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(ShapeKind.pickerKinds) { kind in
                 tile(for: kind)
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 28)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .padding(.top, 4)
+        .padding(.bottom, 40)
     }
 
     private func glyphSize(for kind: ShapeKind) -> CGSize {
@@ -1053,10 +1283,10 @@ struct ShapePickerSheet: View {
             .frame(width: size.width, height: size.height)
     }
 
-    /// The preview shown while dragging a shape out of the sheet (with the 56% shadow).
+    /// The preview shown while dragging a shape out of the panel (with the 56% shadow).
     private func dragPreview(for kind: ShapeKind) -> some View {
         glyph(for: kind)
-            .shadow(color: Level2Shadow.color, radius: Level2Shadow.radius, x: Level2Shadow.x, y: Level2Shadow.y)
+            .level2Shadow()
             .padding(12)
     }
 
@@ -1100,29 +1330,178 @@ struct ShapeTileStyle: ButtonStyle {
     }
 }
 
+// MARK: - Level 2 Progress (in memory, so Pause keeps your work)
+
+/// Holds the drawing, shapes and answer outside the view. Leaving with `pause` pops Level2View,
+/// so without this the work would be lost. Cleared after a completed submission.
+@Observable
+final class Level2Progress {
+    static let shared = Level2Progress()
+
+    var model = EditorModel()
+    var answer = ""
+    var isSubmitted = false
+
+    func reset() {
+        model = EditorModel()
+        answer = ""
+        isSubmitted = false
+    }
+}
+
+// MARK: - Answer Window (compact centered card, not a sheet)
+
+struct AnswerWindow: View {
+    let onCreate: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var draft: String
+    @FocusState private var isFocused: Bool
+
+    init(initialAnswer: String,
+         onCreate: @escaping (String) -> Void,
+         onCancel: @escaping () -> Void) {
+        self.onCreate = onCreate
+        self.onCancel = onCancel
+        _draft = State(initialValue: initialAnswer)
+    }
+
+    private var cleaned: String {
+        let trimmed: String = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(trimmed.prefix(Level2Layout.maxAnswerLength))
+    }
+
+    private var isValid: Bool { !cleaned.isEmpty }
+
+    // CHANGED: نفس تصميم بطاقة الكتابة في ليفل ١ و٣
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            field
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(width: 312, height: 161, alignment: .top)
+        .background(Color.white.opacity(0.92))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape) { onCancel() }
+        .onAppear { isFocused = true }
+    }
+
+    private var header: some View {
+        HStack {
+            // cancel رمادي (نفس ليفل ١ و٣)
+            Button("cancel", action: onCancel)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Color(hex: "6B6B66"))
+
+            Spacer()
+
+            createButton
+        }
+    }
+
+    // create برتقالي (نفس ليفل ١ و٣)
+    private var createButton: some View {
+        Button(action: create) {
+            Text("create")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 26)
+                .background(Capsule().fill(Color.primaryOrange))
+        }
+        .opacity(isValid ? 1 : 0.4)     // باهت لين يكتب شي
+        .disabled(!isValid)
+    }
+
+    private var field: some View {
+        TextField("Write what you created!", text: $draft)   // CHANGED: نفس خط ليفل ١ و٣
+            .font(.system(size: 13))
+            .foregroundColor(Color(hex: "111111"))
+            .focused($isFocused)
+            .submitLabel(.done)
+            .onSubmit { create() }
+            .onChange(of: draft) { _, newValue in
+                if newValue.count > Level2Layout.maxAnswerLength {
+                    draft = String(newValue.prefix(Level2Layout.maxAnswerLength))
+                }
+            }
+            .accessibilityLabel("Your answer")
+            .accessibilityHint("Up to \(Level2Layout.maxAnswerLength) characters.")
+    }
+
+    private func create() {
+        guard isValid else { return }
+        onCreate(cleaned)
+    }
+}
+
 // MARK: - Level 2 Screen
 
 struct Level2View: View {
+    /// Called once when the challenge is submitted with Done.
     var onComplete: () -> Void = {}
-    @State private var model = EditorModel()
-    @State private var answer = ""
+
+    @Environment(\.dismiss) private var dismiss
+
+    private let progress = Level2Progress.shared
+
     @State private var isDrawing = false
     @State private var showShapes = false
+    @State private var showAnswerWindow = false
     @State private var showClearConfirmation = false
-    @FocusState private var isEditing: Bool
+    @State private var showEditHint = false
+    @State private var hasShownHint = false
+    @State private var showPause = false
+    @State private var showReward = false
 
-    /// Only the shape sheet floats the toolbar above itself.
-    private var floatingControls: Bool { showShapes }
+    // ---------- NEW: النجوم والحفظ ----------
+    private let levelNumber = 2
+    private let levelStars = 20                      // CHANGED: نجوم الليفل كاملة (تنعطى مرة وحدة لما يكمّل الخطوتين)
 
-    /// While typing, the drawing toolbar is hidden (the keyboard has its own Done bar).
-    private var hideControls: Bool { showShapes || isEditing }
+    // النجوم محفوظة في الجوال (نفس المفتاح حق ليفل ١ و٣)
+    @AppStorage(GameStorage.starsKey) private var totalStars = 0
 
-    /// Done appears only after a real canvas edit, and never over the sheet, keyboard or tool picker.
-    private var showDone: Bool {
-        model.hasEdits && !showShapes && !isEditing && !isDrawing
+    // CHANGED: كم نجمة أخذ من هالليفل (٠ أو ٢٠)
+    @State private var givenStars = 0
+    @State private var pendingStars = 0              // النجوم اللي بتنضاف لما توصل النجمة الطايرة
+
+    // النجمة الطايرة (من LevelHelpers)
+    @State private var isStarFlying = false
+    @State private var flyStart: CGPoint = .zero
+    @State private var badgeFrame: CGRect = .zero
+    @State private var canvasFrame: CGRect = .zero
+    @State private var badgeBump = false
+
+    // النقطة اللي توصل لها النجمة (النجمة الصغيرة في العداد)
+    private var badgeStarPoint: CGPoint {
+        CGPoint(x: badgeFrame.minX + 19, y: badgeFrame.midY)
     }
 
-    /// Kind of the shape selected on the canvas, used for the selected state in the sheet.
+    // النجوم اللي جمعها في هالليفل (تطلع في الريوارد)
+    private var earnedInThisLevel: Int { givenStars }
+
+    // CHANGED: كم نجمة **يستاهل** الحين؟
+    // لازم يكون رسم/حط شكل **و** كتب إجابة → ٢٠، غير كذا → ٠
+    private var deservedStars: Int {
+        (model.hasEdits && hasAnswer) ? levelStars : 0
+    }
+
+    private var model: EditorModel { progress.model }
+    private var answer: String { progress.answer }
+    private var hasAnswer: Bool { !answer.isEmpty }
+
+    /// The bottom button appears after a real canvas edit, and never over a panel, window or the pen tools.
+    private var showAction: Bool {
+        model.hasEdits && !showShapes && !isDrawing && !showAnswerWindow
+    }
+
+    private var hideMainControls: Bool { showShapes || showAnswerWindow }
+
+    /// Kind of the shape selected on the canvas, used for the selected state in the panel.
     private var selectedKind: ShapeKind? {
         guard let id = model.selectedID else { return nil }
         return model.items.first(where: { $0.id == id })?.kind
@@ -1133,41 +1512,62 @@ struct Level2View: View {
             Level2Theme.cream.ignoresSafeArea()
             mainLayout
             floatingLayer
-            doneLayer
+            actionLayer
+            answerLayer
         }
+        // NEW: النجمة الطايرة من الملف المشترك
+        .flyingStar(isFlying: $isStarFlying, from: flyStart, to: badgeStarPoint) {
+            starArrived()
+        }
+        .coordinateSpace(.named("screen"))
+        // NEW: أول ما تفتح الصفحة نرجّع الإجابة والنجوم اللي أخذها قبل
+        .onAppear(perform: loadSaved)
+        // CHANGED: كل ما تغيّر اللي يستاهله (أضاف إجابة، مسح الرسم، undo...) نحدّث النجوم
+        .onChange(of: deservedStars) { _, newValue in
+            updateStars(to: newValue)
+        }
+        .pausePage(isPresented: $showPause,
+                   message: PauseMessages.level2,      // NEW: عبارة الـ Pause حق هالليفل
+                   onPause: { dismiss() },
+                   onBack: {})
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { isEditing = false }
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Level2Theme.orange)
-            }
-        }
-        .sheet(isPresented: $showShapes) { shapeSheet }
         .confirmationDialog("Clear the canvas?",
                             isPresented: $showClearConfirmation,
                             titleVisibility: .visible) {
-            Button("Clear Canvas", role: .destructive) { model.clearAll() }
+            Button("Clear Canvas", role: .destructive) {
+                model.clearAll()
+                updateStars(to: deservedStars)           // NEW: مسح كل شي → ننقص النجوم على طول
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes your shapes and pen strokes. The stop sign stays. You can undo this.")
         }
-        .onChange(of: isEditing) { _, editing in
-            if editing {
-                showShapes = false
-                isDrawing = false
-            }
-        }
         .onChange(of: isDrawing) { _, drawing in
-            if drawing {
-                model.select(nil)
-                isEditing = false
-            }
+            if drawing { model.select(nil) }
+        }
+        .onDisappear {
+            if progress.isSubmitted { progress.reset() }
         }
         .animation(.easeInOut(duration: 0.25), value: showShapes)
-        .animation(.easeInOut(duration: 0.2), value: showDone)
+        .animation(.easeInOut(duration: 0.2), value: showAction)
+        .animation(.easeInOut(duration: 0.2), value: showEditHint)
+        .animation(.easeInOut(duration: 0.2), value: showAnswerWindow)
+        .animation(.easeInOut(duration: 0.25), value: showReward)
         .preferredColorScheme(.light)
+        // CHANGED: صفحة الريوارد تنفتح بنفس طريقة ليفل ١ (fullScreenCover)
+        .fullScreenCover(isPresented: $showReward) {
+            RewardPopupView(
+                xp: 10,
+                coins: 350,
+                stars: earnedInThisLevel,            // النجوم اللي جمعها في هالليفل
+                tip: LevelTips.level2,               // التيب من LevelHelpers
+                onDone: {
+                    showReward = false
+                    onComplete()                     // CHANGED: نفتح الليفل اللي بعده هنا (مو قبل الريوارد)
+                    dismiss()                        // نرجع للماب
+                }
+            )
+        }
     }
 
     // MARK: Layout
@@ -1175,8 +1575,9 @@ struct Level2View: View {
     private func canvasSide(for size: CGSize) -> CGFloat {
         let widthLimit: CGFloat = size.width - 40
         let heightLimit: CGFloat = size.height * 0.5
-        let side: CGFloat = min(widthLimit, heightLimit, Level2Layout.maxCanvas)
-        return max(0, side)
+        let smallest: CGFloat = min(widthLimit, heightLimit)
+        let capped: CGFloat = min(smallest, Level2Layout.maxCanvas)
+        return max(0, capped)
     }
 
     private var mainLayout: some View {
@@ -1188,11 +1589,12 @@ struct Level2View: View {
                     .padding(.top, 24)
                     .padding(.horizontal, 16)
                 canvas(side: side)
+                    .readFrame { canvasFrame = $0 }      // NEW: مكان اللوحة (النجمة تطير منها)
                     .padding(.top, 20)
                 controls
-                    .opacity(hideControls ? 0 : 1)
-                    .allowsHitTesting(!hideControls)
-                    .accessibilityHidden(hideControls)
+                    .opacity(hideMainControls ? 0 : 1)
+                    .allowsHitTesting(!hideMainControls)
+                    .accessibilityHidden(hideMainControls)
                     .padding(.top, 12)
                 Spacer(minLength: 0)
             }
@@ -1206,23 +1608,31 @@ struct Level2View: View {
             model: model,
             side: side,
             isDrawing: isDrawing,
-            onBackgroundTap: { isEditing = false },
             onDropShape: { kind, center in addShape(kind, at: center) }
         )
     }
 
-    // MARK: Back arrow (appearance only, no action)
+    // MARK: Back arrow (opens the shared Pause page)
 
     private var backArrow: some View {
         HStack {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.black)
-                .frame(width: 44, height: 44)
+            Button(action: openPause) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Pause")
+            .accessibilityHint("Opens the pause menu. Your work is kept.")
             Spacer()
+
+            // NEW: عداد النجوم
+            Level2StarBadge(count: totalStars)
+                .scaleEffect(badgeBump ? 1.18 : 1)       // نبضة لما توصل النجمة
+                .readFrame { badgeFrame = $0 }           // نحفظ مكان العداد
         }
         .padding(.horizontal, 12)
-        .accessibilityHidden(true)
     }
 
     // MARK: Sentence
@@ -1240,11 +1650,50 @@ struct Level2View: View {
     private var answerLine: some View {
         HStack(spacing: 6) {
             Text("this is")
-            InlineAnswerField(text: $answer, focus: $isEditing) { isEditing = false }
+                .layoutPriority(1)
+            answerContent
         }
         .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .onTapGesture { isEditing = true }
+    }
+
+    @ViewBuilder
+    private var answerContent: some View {
+        if hasAnswer {
+            editableAnswer
+        } else {
+            Text(".......")
+        }
+    }
+
+    /// The underlined answer is itself the edit control (no separate Edit button).
+    private var editableAnswer: some View {
+        Button(action: editAnswer) {
+            Text(answer)
+                .underline(true, color: Level2Theme.answerRed)
+                .foregroundStyle(Level2Theme.answerRed)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) { editHint }
+        .accessibilityLabel("Your answer: \(answer)")
+        .accessibilityHint("Double tap to edit your answer.")
+    }
+
+    /// Subtle first-use hint. It is an overlay, so it never changes the title layout.
+    @ViewBuilder
+    private var editHint: some View {
+        if showEditHint {
+            Text("Tap to edit")
+                .font(.caption)
+                .foregroundStyle(.black.opacity(0.5))
+                .offset(y: 14)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .transition(.opacity)
+        }
     }
 
     private var sentence: some View {
@@ -1252,7 +1701,7 @@ struct Level2View: View {
             highlightedWords
             answerLine
         }
-        .font(.title2.weight(.bold))
+        .font(.system(size: 28, weight: .bold))
         .foregroundStyle(.black)
         .lineLimit(1)
         .minimumScaleFactor(0.55)
@@ -1270,64 +1719,97 @@ struct Level2View: View {
             canClear: model.hasEdits,
             onPen: togglePen,
             onShapes: toggleShapes,
-            onUndo: { model.undo() },
-            onRedo: { model.redo() },
+            onUndo: {
+                model.undo()
+                updateStars(to: deservedStars)           // NEW: نحدّث النجوم بعد undo
+            },
+            onRedo: {
+                model.redo()
+                updateStars(to: deservedStars)           // NEW: نحدّث النجوم بعد redo
+            },
             onClear: { showClearConfirmation = true }
         )
         .frame(maxWidth: Level2Layout.maxCanvas)
         .padding(.horizontal, 20)
     }
 
+    /// Toolbar stacked directly above the shapes panel, in the same hierarchy.
     @ViewBuilder
     private var floatingLayer: some View {
-        if floatingControls {
-            VStack(spacing: 0) {
+        if showShapes {
+            VStack(spacing: 10) {
                 Spacer(minLength: 0)
                 controls
-                    .padding(.bottom, Level2Layout.sheetHeight + 8)
+                ShapesPanel(selectedKind: selectedKind,
+                            onSelect: { kind in addShape(kind, at: nil) },
+                            onDismiss: { showShapes = false })
+                    .transition(.move(edge: .bottom))
             }
             .ignoresSafeArea(.container, edges: .bottom)
+        }
+    }
+
+    // MARK: Answer window layer
+
+    /// Dimmed background with a compact card at about 42% of the screen height, over the canvas.
+    /// The toolbar sits above the keyboard, visible but not tappable while the window is open.
+    @ViewBuilder
+    private var answerLayer: some View {
+        if showAnswerWindow {
+            ZStack {
+                GeometryReader { proxy in
+                    ZStack {
+                        Color.black.opacity(0.12)
+                            .ignoresSafeArea()
+                            .accessibilityHidden(true)
+                        AnswerWindow(initialAnswer: answer,
+                                     onCreate: saveAnswer,
+                                     onCancel: closeAnswerWindow)
+                            .position(x: proxy.size.width / 2,
+                                      y: proxy.size.height * 0.42)
+                    }
+                }
+                .ignoresSafeArea(.keyboard)
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    controls
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .padding(.bottom, 8)
+                }
+            }
             .transition(.opacity)
         }
     }
 
-    // MARK: Done
+    // MARK: Bottom action (Add Answer, then Done)
 
     @ViewBuilder
-    private var doneLayer: some View {
-        if showDone {
+    private var actionLayer: some View {
+        if showAction {
             VStack {
                 Spacer(minLength: 0)
-                doneButton
+                actionButton
                     .padding(.bottom, 24)
             }
             .transition(.opacity)
         }
     }
 
-    private var doneButton: some View {
-        Button {
-            isEditing = false
-            model.select(nil)
-            onComplete()
-        } label: {
-            Text("Done")
+    private var actionButton: some View {
+        let title: String = hasAnswer ? "Done" : "Add Answer"
+        let hint: String = hasAnswer ? "Submits your challenge." : "Opens a field to write what you created."
+        return Button(action: actionTapped) {
+            Text(title)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: 132, height: 48)
+                .frame(width: 148, height: 48)
                 .background(Level2Theme.orange, in: Capsule())
         }
-        .accessibilityLabel("Done")
-        .accessibilityHint("Completes the activity.")
-    }
-    // MARK: Shape sheet
-
-    private var shapeSheet: some View {
-        ShapePickerSheet(selectedKind: selectedKind) { kind in addShape(kind, at: nil) }
-            .presentationDetents([.height(Level2Layout.sheetHeight)])
-            .presentationDragIndicator(.visible)
-            .presentationBackgroundInteraction(.enabled)
-            .presentationBackground(Level2Theme.cream)
+        .disabled(progress.isSubmitted)
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
     }
 
     // MARK: Actions
@@ -1338,10 +1820,7 @@ struct Level2View: View {
     }
 
     private func toggleShapes() {
-        if !showShapes {
-            isDrawing = false
-            isEditing = false
-        }
+        if !showShapes { isDrawing = false }
         showShapes.toggle()
     }
 
@@ -1350,43 +1829,129 @@ struct Level2View: View {
         isDrawing = false
         showShapes = false
     }
+
+    private func openPause() {
+        showShapes = false
+        showAnswerWindow = false
+        isDrawing = false
+        showPause = true
+    }
+
+    private func actionTapped() {
+        if hasAnswer {
+            submit()
+        } else {
+            presentAnswerWindow()
+        }
+    }
+
+    /// The answer window and the shapes panel are never shown together.
+    private func presentAnswerWindow() {
+        showShapes = false
+        isDrawing = false
+        showAnswerWindow = true
+    }
+
+    private func editAnswer() {
+        showEditHint = false
+        presentAnswerWindow()
+    }
+
+    private func closeAnswerWindow() {
+        showAnswerWindow = false
+    }
+
+    /// Saving an answer only updates the title. It never submits the challenge.
+    private func saveAnswer(_ value: String) {
+        progress.answer = value
+        GameStorage.saveAnswer(value, level: levelNumber)   // NEW: نحفظ الإجابة في الجوال
+        showAnswerWindow = false
+        guard !hasShownHint else { return }
+        hasShownHint = true
+        showEditHint = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { showEditHint = false }
+    }
+
+    /// Runs once, so repeated taps can't trigger the reward twice.
+    private func submit() {
+        // CHANGED: لازم يكون رسم/حط شكل **و** كتب إجابة، وإلا ما يقدر يخلص الليفل
+        guard model.hasEdits, hasAnswer, !progress.isSubmitted else { return }
+        progress.isSubmitted = true
+        GameStorage.markLevelCompleted(levelNumber)          // NEW: خلّص → النجوم تثبت وما تنقص
+        model.select(nil)
+        // CHANGED: شلنا onComplete() من هنا ونقلناه لزر Done في الريوارد (نفس ليفل ١)
+        // لأنه لو انستدعى هنا، الماب ممكن يسكّر الليفل قبل ما تطلع صفحة الريوارد
+        showReward = true
+    }
+
+    // MARK: NEW: النجوم
+
+    /// نرجّع الإجابة المحفوظة، ونعرف كم نجمة أخذ قبل
+    private func loadSaved() {
+        if progress.answer.isEmpty {
+            progress.answer = GameStorage.loadAnswer(level: levelNumber)
+        }
+        givenStars = GameStorage.starsGiven(level: levelNumber)
+    }
+
+    /// يخلي نجوم الليفل = اللي يستاهله: يزيد لو كمّل، وينقص لو حذف
+    private func updateStars(to target: Int) {
+        // 1) إذا خلّص الليفل قبل، النجوم ثابتة وما نغيرها
+        if GameStorage.isLevelCompleted(levelNumber) { return }
+
+        // 2) نحسب الفرق بين اللي يستاهله واللي أخذه
+        let difference = target - givenStars
+        if difference == 0 { return }
+
+        // 3) نحفظ الرقم الجديد
+        givenStars = target
+        GameStorage.setStarsGiven(target, level: levelNumber)
+
+        if difference > 0 {
+            // 4أ) زادت → نطيّر النجمة من نص اللوحة للعداد
+            pendingStars = difference
+            flyStart = CGPoint(x: canvasFrame.midX, y: canvasFrame.midY)
+            isStarFlying = true
+        } else {
+            // 4ب) نقصت (حذف الرسم أو سوى undo) → ننقص من العداد على طول
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                totalStars = max(0, totalStars + difference)
+            }
+        }
+    }
+
+    /// لما توصل النجمة للعداد: يزيد والعداد ينبض
+    private func starArrived() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+            totalStars += pendingStars               // ينحفظ تلقائياً
+            pendingStars = 0
+            badgeBump = true
+        } completion: {
+            withAnimation(.spring(response: 0.3)) { badgeBump = false }
+        }
+    }
 }
 
-// MARK: - Sentence Answer Field
+// MARK: - NEW: عداد النجوم حق ليفل ٢
 
-struct InlineAnswerField: View {
-    @Binding var text: String
-    var focus: FocusState<Bool>.Binding
-    let onSubmit: () -> Void
+private struct Level2StarBadge: View {
+    var count: Int
 
     var body: some View {
-        let isFocused: Bool = focus.wrappedValue
-        let highlightOpacity: Double = isFocused ? 0.16 : 0
-        return sizer
-            .overlay { field }
-            .background(Level2Theme.orange.opacity(highlightOpacity),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .onChange(of: text) { _, newValue in
-                if newValue.count > 24 { text = String(newValue.prefix(24)) }
-            }
-    }
-
-    /// Invisible text that gives the field the width of its content.
-    private var sizer: some View {
-        Text(text.isEmpty ? "......." : text)
-            .opacity(0)
-            .padding(.horizontal, 6)
-    }
-
-    private var field: some View {
-        TextField("", text: $text, prompt: Text(".......").foregroundStyle(.black))
-            .focused(focus)
-            .submitLabel(.done)
-            .onSubmit(onSubmit)
-            .multilineTextAlignment(.leading)
-            .padding(.horizontal, 6)
-            .accessibilityLabel("Your answer")
-            .accessibilityHint("Finish the sentence: this is")
+        HStack(spacing: 3) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(Color(red: 1, green: 0.79, blue: 0.2))
+            Text("\(count)")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.black)
+                .contentTransition(.numericText(value: Double(count)))
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 29)
+        .background(Color(red: 0.99, green: 0.96, blue: 0.86), in: Capsule())
+        .overlay(Capsule().stroke(Color(red: 0.90, green: 0.78, blue: 0.48), lineWidth: 1))
+        .accessibilityLabel("\(count) stars")
     }
 }
 

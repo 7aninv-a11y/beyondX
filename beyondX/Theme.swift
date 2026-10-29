@@ -48,40 +48,47 @@ extension Color {
 //   @State private var showPause = false
 //   .pausePage(isPresented: $showPause, onPause: { dismiss() })
 //
+// ولو تبين عبارة خاصة لليفل:
+//   .pausePage(isPresented: $showPause, message: PauseMessages.level1, onPause: { dismiss() })
+//
 // onContinue و onBack اختياريين:
 //   - Continue إذا ما كتبتيه: يسكّر الـ Pause بس
 //   - زر الرجوع إذا ما كتبتيه: يسوي نفس زر pause
 extension View {
     func pausePage(isPresented: Binding<Bool>,
+                   message: String = "Do you want to pause your creative journey?",   // NEW: عبارة كل ليفل
                    onPause: @escaping () -> Void,
                    onContinue: @escaping () -> Void = {},
                    onBack: (() -> Void)? = nil) -> some View {
         self
-            .blur(radius: isPresented.wrappedValue ? 8 : 0)   // NEW: الصفحة اللي ورا تصير ضبابية
+            .blur(radius: isPresented.wrappedValue ? 8 : 0)   // الصفحة اللي ورا تصير ضبابية
             .overlay {
-                if isPresented.wrappedValue {
-                    PausePageView(
-                        onBack: {
-                            isPresented.wrappedValue = false
-                            (onBack ?? onPause)()
-                        },
-                        onPause: {
-                            isPresented.wrappedValue = false
-                            onPause()
-                        },
-                        onContinue: {
-                            isPresented.wrappedValue = false
-                            onContinue()
-                        }
-                    )
-                    .transition(.opacity)
-                }
+            if isPresented.wrappedValue {
+                PausePageView(
+                    message: message,                          // NEW
+                    onBack: {
+                        isPresented.wrappedValue = false
+                        (onBack ?? onPause)()
+                    },
+                    onPause: {
+                        isPresented.wrappedValue = false
+                        onPause()
+                    },
+                    onContinue: {
+                        isPresented.wrappedValue = false
+                        onContinue()
+                    }
+                )
+                .transition(.opacity)
             }
-            .animation(.easeInOut(duration: 0.25), value: isPresented.wrappedValue)
+        }
+        .animation(.easeInOut(duration: 0.25), value: isPresented.wrappedValue)
     }
 }
 
 struct PausePageView: View {
+
+    var message: String = "Do you want to pause your creative journey?"   // NEW: العبارة تحت "Need a break ?"
 
     var onBack: () -> Void         // زر الرجوع (فوق يسار)
     var onPause: () -> Void        // زر pause: يطلع من الليفل (التقدم محفوظ)
@@ -89,7 +96,7 @@ struct PausePageView: View {
 
     var body: some View {
         ZStack {
-            // خلفية شفافة، الصفحة اللي ورا تبان (ضبابية)
+            // خلفية شفافة، الصفحة اللي ورا تبان
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
 
@@ -132,8 +139,9 @@ struct PausePageView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.textPrimary)
 
-            Text("Progress saved...")
+            Text(message)                                  // CHANGED: كانت "Progress saved..."
                 .font(.system(size: 17))
+                .fixedSize(horizontal: false, vertical: true)   // ينزل سطر ثاني لو طويل
                 .foregroundColor(.pauseSubtitle)
                 .padding(.top, 14)
 
