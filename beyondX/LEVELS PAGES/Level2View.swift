@@ -1806,6 +1806,7 @@ struct Level2View: View {
                 .foregroundStyle(.white)
                 .frame(width: 148, height: 48)
                 .background(Level2Theme.orange, in: Capsule())
+                .buttonShadow()                              // شادو Sketch
         }
         .disabled(progress.isSubmitted)
         .accessibilityLabel(title)
@@ -1939,9 +1940,10 @@ private struct Level2StarBadge: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 18))
-                .foregroundStyle(Color(red: 1, green: 0.79, blue: 0.2))
+            Image("goldenStar")                              // نجمة Sketch (حوافها ناعمة)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 20)
             Text("\(count)")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.black)

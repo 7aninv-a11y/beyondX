@@ -14,8 +14,8 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 70)
 
-                    // 1. Header Lockup — "Beyond ✕" with the tagline aligned under "Beyond"
-                    VStack(alignment: .leading, spacing: 6) {
+                    // 1. Header Lockup — "Beyond ✕" with the tagline centered under it (Sketch)
+                    VStack(alignment: .center, spacing: 12) {
                         HStack(alignment: .center, spacing: 8) {
                             Text("Beyond")
                                 .font(.system(size: 56, weight: .bold))
@@ -26,9 +26,8 @@ struct ContentView: View {
                         }
 
                         Text("Your Mind, No Limits.")
-                            .font(.custom("Arial-BoldMT", size: 19))
+                            .font(.custom("Arial-BoldMT", size: 20))       // Sketch: Arial Bold 20
                             .foregroundColor(Color(hex: "625F5F"))
-                            .padding(.leading, 1)
                             .opacity(showTagline ? 1 : 0)
                             .offset(y: showTagline ? 0 : 8)
                     }
@@ -40,11 +39,12 @@ struct ContentView: View {
                     .offset(y: nameSettled ? 0 : geo.size.height / 2 - 105)
                     .opacity(showName ? 1 : 0)
 
-                    Spacer().frame(height: 92)
+                    Spacer().frame(height: 86)
 
-                    // 2. Robot Mascot (animated)
-                    AnimatedRobot()
-                        .frame(width: 244, height: 223)
+                    // 2. Robot Mascot (animated) — Sketch: الروبوت صار أكبر (282 → 314)
+                    // يبدأ يلوّح أول ما يطلع (الروبوت يطلع بعد 1.6 ثانية من فتح الصفحة)
+                    AnimatedRobot(waveDelay: 1.7)
+                        .frame(width: 272, height: 248)
                         .compositingGroup()
                         .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 4)   // Sketch: #000 10%, y 4, blur 8
                         .scaleEffect(showRobot ? 1 : 0.6)

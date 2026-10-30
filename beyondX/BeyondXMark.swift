@@ -33,8 +33,7 @@ struct BeyondXShape: Shape {
     }
 }
 
-/// Animated X: pops in with a spin, then every few seconds does a quick
-/// bouncy quarter-turn. An X turned 90° looks the same, so the loop is seamless.
+/// Animated X: pops in with a spin once, then stays still.
 struct BeyondXMark: View {
     var width: CGFloat = 48
     @State private var appeared = false
@@ -54,12 +53,7 @@ struct BeyondXMark: View {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.55)) {
                     appeared = true
                 }
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(3.5))      // time between spins
-                    withAnimation(.spring(response: 0.55, dampingFraction: 0.5)) {
-                        turns += 1
-                    }
-                }
+                // الحركة مرة وحدة بس (شلنا اللوب اللي كان يلف الإكس كل ٣.٥ ثانية)
             }
     }
 }

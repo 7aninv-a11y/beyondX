@@ -162,33 +162,27 @@ struct Level3View: View {
             .padding(.horizontal, Theme.screenPadding)
             .padding(.top, 13)
 
-            // MARK: Title + subtitle
-            VStack(spacing: 12) {
-                Text("Think beyond the object!")
-                    .font(Theme.bold(26))
-                    .foregroundColor(Theme.title)
+            // MARK: Title — Sketch: SF Pro Bold 24، في النص، عرض 333، يبدأ y 172
+            Text("Think of as many creative uses for the object as you can!")
+                .font(Theme.bold(24))
+                .foregroundColor(.black)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 333, height: 87, alignment: .top)
+                .padding(.top, 52)
 
-                Text("Think of as many creative uses for the object as you can!")
-                    .font(Theme.regular(13))
-                    .lineSpacing(2)
-                    .foregroundColor(Theme.subtitle)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            }
-            .padding(.top, 47)
-
-            // MARK: Object
+            // MARK: Object — Sketch: 254 × 180، يبدأ y 316
             Image("cup")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 247, height: 174)
-                .padding(.top, 72)
-                .padding(.leading, 24)
+                .frame(width: 254, height: 180)
+                .padding(.top, 57)
+                .padding(.leading, 10)
 
-            // MARK: Counter + ideas + Add Text
+            // MARK: Counter + ideas + Add Text — Sketch: Add Text على y 550
             ideasSection
                 .padding(.horizontal, Theme.contentPadding)
-                .padding(.top, 41)
+                .padding(.top, 37)
 
             Spacer(minLength: 0)
 
@@ -202,6 +196,7 @@ struct Level3View: View {
                             .frame(width: 138, height: 48)
                             .background(Theme.orange)
                             .clipShape(Capsule())
+                            .buttonShadow()                  // شادو Sketch
                     }
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -237,10 +232,10 @@ struct Level3View: View {
                 if ideas.count < maxIdeas {
                     Button(action: openEditor) {
                         Text("+ Add Text")
-                            .font(Theme.regular(13))
-                            .foregroundColor(Theme.addText)
+                            .font(Theme.regular(15))                       // Sketch: SF Pro Regular 15
+                            .foregroundColor(Color(hex: 0x4A4A4A, opacity: 0.9))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 44)
+                            .frame(height: 47)                             // Sketch: 313 × 47
                             .contentShape(Rectangle())
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -465,7 +460,7 @@ struct CelebrationView: View {
                 .frame(width: 144, height: 50)
                 .background(Theme.orange)
                 .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                .buttonShadow()                              // شادو Sketch
         }
         .opacity(showDone ? 1 : 0)
     }
@@ -769,9 +764,10 @@ struct StarBadge: View {
     var count: Int
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 18))
-                .foregroundColor(Theme.star)
+            Image("goldenStar")                              // نجمة Sketch (حوافها ناعمة)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 20)
             Text("\(count)")
                 .font(Theme.bold(14))
                 .foregroundColor(Theme.title)

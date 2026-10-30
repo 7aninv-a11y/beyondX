@@ -25,124 +25,108 @@ struct RewardPopupView: View {
     // الصفحة اللي فتحت الـ Popup هي اللي تقرر وش يصير (تقفله مثلاً)
     var onDone: () -> Void
 
-    // ---------- الألوان من Sketch ----------
-    let background = Color(hex: "FBF8ED")   // خلفية الصفحة
-    let yellowBox  = Color(hex: "FFF4CB")   // لون الصندوق
-    let borderGray = Color(hex: "979797")   // لون الحدود
+    // ---------- الألوان من Sketch (reward level 1 / reward level 2) ----------
+    let background = Color(hex: "FBF8ED")   // خلفية الصفحة + لون صندوق التيب
+    let borderGray = Color(hex: "E8E8E8")   // حدود صندوق التيب
     let textBlack  = Color(hex: "060606")   // لون النصوص
 
     // ---------- شكل الصفحة ----------
     var body: some View {
 
-        // ZStack: يحط العناصر فوق بعض
-        // الخلفية تحت، والمحتوى فوقها
         ZStack {
 
-            // لون الخلفية يغطي الشاشة كلها
-            // ignoresSafeArea: يمدد اللون تحت الساعة وتحت الخط السفلي
             background.ignoresSafeArea()
 
-            // VStack: يرتب العناصر عمودياً، واحد تحت الثاني
-            // spacing: 0 يعني ما نبي مسافات تلقائية، نتحكم فيها بأنفسنا
             VStack(spacing: 0) {
 
-                // مسافة فوق العنوان (مكان شارة النجوم اللي حذفناها)
-                Spacer().frame(height: 91)
+                // مسافة فوق العنوان — Sketch: العنوان يبدأ y 144
+                Spacer().frame(height: 74)
 
                 // ----------------------------------------
-                // أ) العنوان الكبير
+                // أ) العنوان الكبير — Sketch: عرض 252
                 // ----------------------------------------
                 Text("AWESOME !")
-                    .font(.system(size: 46, weight: .black))   // black = أثقل وزن للخط
+                    .font(.system(size: 42, weight: .black))
                     .foregroundColor(textBlack)
 
                 // ----------------------------------------
-                // ب) صورة الروبوت
+                // ب) الروبوت ماسك النجمة — Sketch: 200 × 240، y 247
                 // ----------------------------------------
                 Image("mascot")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 200, height: 240)  // نفس قياسها في Sketch
-                    .padding(.top, 12)
+                    .frame(width: 200, height: 240)
+                    .padding(.top, 62)
 
                 // ----------------------------------------
-                // ج) نص النجوم اللي جمعها + صورة النجمة
+                // ج) النجوم — Sketch: SF Pro Bold 20، بدون صورة نجمة، y 541
                 // ----------------------------------------
-                HStack(spacing: 6) {
-                    Text("You earned: +\(stars)")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(textBlack)
-
-                    Image("goldenStar")          // صورة النجمة في Assets
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 26, height: 26)
-                }
-                .padding(.top, 24)
+                Text("You earned:+\(stars)")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.black)
+                    .padding(.top, 44)
 
                 // ----------------------------------------
-                // د) صندوق النصيحة
+                // د) صندوق النصيحة — Sketch: 304 × 143، y 585
                 // ----------------------------------------
                 tipBox
                     .padding(.top, 24)
 
-                // Spacer بدون قياس: ياخذ كل المساحة الفاضية
-                // وبهذا ينزل الزر لتحت الشاشة
                 Spacer()
 
                 // ----------------------------------------
-                // هـ) زر Done
+                // هـ) زر Done — Sketch: 144 × 50، y 763
                 // ----------------------------------------
-                // action: الكود اللي ينفذ عند الضغط، وهنا ننفذ onDone
                 Button(action: onDone) {
                     Text("Done")
                         .font(.system(size: 17))
                         .foregroundColor(.white)
-                        .frame(width: 144, height: 50)   // قياس الزر من Sketch
-                        .background(Capsule().fill(Color.primaryOrange))   // نفس برتقالي باقي الصفحات
+                        .frame(width: 144, height: 50)
+                        .background(Capsule().fill(Color.primaryOrange))
+                        .buttonShadow()                      // شادو Sketch
                 }
-                .padding(.bottom, 30)                    // مسافة من تحت الشاشة
+                .padding(.bottom, 30)
             }
         }
     }
 
     // ============================================================
-    // صندوق النصيحة (فصلناه لحاله عشان الـ body يكون أوضح)
+    // صندوق النصيحة
     // ============================================================
     private var tipBox: some View {
 
-        // alignment: .top يخلي الأيقونة والنص يبدون من فوق
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 2) {
 
-            // أيقونة اللمبة
+            // أيقونة اللمبة — Sketch: 45 × 39
             Image("lightbulb")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 45, height: 39)
+                .padding(.top, 17)
 
-            // النصوص: "Tip :" ثم نص النصيحة تحتها
-            VStack(alignment: .leading, spacing: 4) {   // leading = محاذاة لليسار
+            // "Tip :" وتحتها النصيحة — Sketch: SF Pro Light 18
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Tip :")
                 Text(tip)
+                    .padding(.leading, 3)
+                    .fixedSize(horizontal: false, vertical: true)   // ينزل سطر بدل ما ينقص
             }
-            .font(.system(size: 18))
+            .font(.system(size: 18, weight: .light))
             .foregroundColor(textBlack)
+            .frame(width: 236, alignment: .leading)
+            .padding(.top, 24)
 
-            // يدفع المحتوى لليسار ويخلي الصندوق يملا عرضه
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 20)                 // مسافة داخلية يمين ويسار
-        .padding(.vertical, 18)                   // مسافة داخلية فوق وتحت
-        .frame(width: 318, alignment: .leading)   // عرض الصندوق من Sketch
+        .padding(.leading, 2)
+        .frame(width: 304, height: 143, alignment: .topLeading)
 
-        // الخلفية + الشادو
+        // الخلفية + الشادو — Sketch: أسود 10%، y 4، Blur 50
         .background(
-            RoundedRectangle(cornerRadius: 25)    // زوايا دائرية 25
-                .fill(yellowBox)
-                // الشادو من Sketch: أسود 10%، x = 0، y = 4، Blur 8 = radius 4
-                .shadow(color: Color.black.opacity(0.10), radius: 4, x: 0, y: 4)
+            RoundedRectangle(cornerRadius: 25)
+                .fill(background)
+                .shadow(color: Color.black.opacity(0.10), radius: 25, x: 0, y: 4)
         )
-        // الحدود الرمادية فوق الصندوق
         .overlay(
             RoundedRectangle(cornerRadius: 25)
                 .stroke(borderGray, lineWidth: 1)

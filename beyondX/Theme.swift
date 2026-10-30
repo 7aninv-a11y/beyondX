@@ -162,6 +162,7 @@ struct PausePageView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .background(Capsule().fill(Color.primaryOrange))
+                        .buttonShadow()                      // شادو Sketch
                 }
             }
             .padding(.top, 22)
@@ -180,5 +181,17 @@ struct PausePageView: View {
             RoundedRectangle(cornerRadius: 34)
                 .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
         )
+    }
+}
+
+
+// MARK: - شادو الأزرار (من Sketch)
+// شادوين فوق بعض: أسود 10% و أسود 25%، كلهم y 4 و Blur 8
+// نستخدمه كذا: .buttonShadow()
+extension View {
+    func buttonShadow() -> some View {
+        self
+            .shadow(color: .black.opacity(0.10), radius: 4, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 4)
     }
 }

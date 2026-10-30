@@ -5,6 +5,9 @@ import SwiftUI
 /// buds off the head, floats up and fades away.
 /// All images share one canvas, so the layers line up exactly.
 struct AnimatedRobot: View {
+    /// متى يبدأ يلوّح (بالثواني من أول ما تفتح الصفحة)
+    var waveDelay: Double = 0.6
+
     @State private var wavePose = 1
     @State private var showSparkles = false
     @State private var capeFrame = 1
@@ -56,7 +59,7 @@ struct AnimatedRobot: View {
     /// Smiles and waves twice, rests calmly with one blink, then repeats.
     private func waveLoop() async {
         guard !reduceMotion else { eyeState = 3; return }
-        try? await Task.sleep(for: .seconds(0.6))
+        try? await Task.sleep(for: .seconds(waveDelay))
 
         let swing = [1, 2, 3, 4, 5, 6, 5, 4, 3, 2]
         let frameTime = 0.06                                  // smaller = faster wave

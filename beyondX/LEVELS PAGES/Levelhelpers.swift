@@ -11,10 +11,10 @@ import SwiftUI
 enum LevelTips {
 
     // Level 1: What if…? (الطيران)
-    static let level1 = "Amazing start! Your imagination is your superpower. Keep it flying!"
+    static let level1 = "Keep questioning the ordinary. Every great idea starts with curiosity!"
 
     // Level 2: This is not a stop sign… (الأشكال)
-    static let level2 = "You turned something ordinary into something new. That's real creativity!"
+    static let level2 = "Perfect doesn't exist,\nstart messy"
 
     // Level 3: يطلع في صفحة الاحتفال (مو الريوارد)
     static let level3 = "You did it! You're a creative thinker. Keep surprising the world with your ideas!"
@@ -87,9 +87,10 @@ struct FlyingStarModifier: ViewModifier {
             // نرسم النجمة فوق الصفحة
             .overlay {
                 if isFlying {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: arrived ? 18 : 44))          // تصغر وهي تطير
-                        .foregroundStyle(Color(hex: "F5C518"))
+                    Image("goldenStar")                                  // نجمة Sketch (حوافها ناعمة)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: arrived ? 22 : 48)                 // تصغر وهي تطير
                         .shadow(color: .orange.opacity(0.4), radius: 8)
                         .position(arrived ? to : from)                   // تنتقل من البداية للنهاية
                         .allowsHitTesting(false)                         // ما تمنع الضغط على الأزرار

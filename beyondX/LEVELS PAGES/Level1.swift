@@ -7,7 +7,7 @@ private let backButtonColor = Color(hex: "F1EEE0")
 
 struct Level1View: View {
     private let maxIdeas = 3
-    private let prompt = "What if humans could fly for 10 minutes every day?"
+    private let prompt = "What If humans could fly for 10 minutes every day"
 
     var stars: Int = 0      // ما نستخدمه الحين (النجوم صارت محفوظة)، بس خليناه عشان صفحة الماب ما يطلع فيها خطأ
     var onComplete: () -> Void = {}
@@ -56,32 +56,28 @@ struct Level1View: View {
                     .padding(.horizontal, 42)
                     .padding(.top, 12)
 
-                // Title
-                Text("What If ...?")
+                // Title + Question (صاروا عنوان واحد) — Sketch: SF Pro Bold 24، سطرين، عرض 341
+                Text(prompt)
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(.black)
-                    .padding(.top, 14)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 30)
+                    .padding(.top, 42)
 
-                Text("Write 3 different ideas !")
-                    .font(.system(size: 17))
-                    .foregroundStyle(Color(white: 0.25))
-                    .padding(.top, 14)
-
-                // Illustration (image named "FlyingIdea" in Assets)
+                // Illustration (image named "FlyingIdea" in Assets) — Sketch: 328 × 211
                 Image("FlyingIdea")
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: 314)
-                    .padding(.horizontal, 44)
-                    .padding(.top, 60)
+                    .frame(maxWidth: 328, maxHeight: 211)
+                    .padding(.horizontal, 37)
+                    .padding(.top, 21)
 
-                // Question
-                Text(prompt)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.black)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 48)
-                    .padding(.top, 14)
+                // Subtitle — Sketch: تحت الشخصية، SF Pro Regular 20 لون 3D3D3D
+                Text("Write 3 different ideas !")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color(hex: "3D3D3D"))
+                    .padding(.top, 28)
 
                 // Ideas + add field
                 VStack(spacing: 14) {
@@ -95,8 +91,8 @@ struct Level1View: View {
                             .transition(.opacity)
                     }
                 }
-                .padding(.horizontal, 41)
-                .padding(.top, 70)
+                .padding(.horizontal, 44)                    // Sketch: عرض 313
+                .padding(.top, 47)                           // Sketch: y 550
 
                 Spacer(minLength: 16)
 
@@ -181,10 +177,12 @@ struct Level1View: View {
             Spacer()
 
             HStack(spacing: 6) {
-                Image(systemName: "star.fill")
-                    .foregroundStyle(Color(hex: "F5C518"))
+                Image("goldenStar")                          // نجمة Sketch (حوافها ناعمة)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 22)
                 Text("\(totalStars)")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 15, weight: .heavy))     // Sketch: SF Pro Heavy 15
                     .foregroundStyle(.black)
                     .contentTransition(.numericText(value: Double(totalStars)))
             }
@@ -205,8 +203,8 @@ struct Level1View: View {
     private var addField: some View {
         Button(action: openCard) {                   // CHANGED: صارت دالة لحالها عشان نستخدمها مرتين
             Text("+ Add Text")
-                .font(.system(size: 17))
-                .foregroundColor(.gray)
+                .font(.system(size: 15))                     // Sketch: SF Pro Regular 15
+                .foregroundColor(Color(hex: "4A4A4A").opacity(0.9))
                 .frame(maxWidth: .infinity)
                 .frame(height: 47)
                 .contentShape(Rectangle())
@@ -381,6 +379,7 @@ private struct DoneButton: View {
                 .foregroundStyle(.white)
                 .frame(width: 144, height: 50)
                 .background(Capsule().fill(Color.primaryOrange))
+                .buttonShadow()                              // شادو Sketch
         }
     }
 }

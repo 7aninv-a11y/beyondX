@@ -12,6 +12,10 @@ struct JourneyView: View {
     @State private var level2Completed = false
     @State private var level3Completed = false
 
+    // NEW: النجوم المحفوظة (نفس المفتاح حق الليفلات)
+    // أول ليفل = 0، وبعد كل ليفل يطلع مجموع اللي كسبه
+    @AppStorage(GameStorage.starsKey) private var totalStars = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 7) {
@@ -52,7 +56,7 @@ struct JourneyView: View {
 
                 LevelCardView(
                     levelNumber: "3",
-                    title: "Think beyond....!",
+                    title: "Think beyond..!",
                     state: level3Completed ? .completed :
                         (level2Completed ? .active : .locked),
                     mascotImageName: "Robot with Idea"
@@ -67,6 +71,12 @@ struct JourneyView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // NEW: عداد النجوم فوق يمين (فوق الصفحة، ما يحرك أي شي)
+        .overlay(alignment: .topTrailing) {
+            JourneyStarBadge(count: totalStars)
+                .padding(.top, 13)
+                .padding(.trailing, 41)
+        }
         .background(Color.aappBackground.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .fullScreenCover(item: $activeLevel) { level in
@@ -93,6 +103,32 @@ struct JourneyView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - عداد النجوم (نفس شكل ليفل ١)
+
+private struct JourneyStarBadge: View {
+    var count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image("goldenStar")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 22)
+            Text("\(count)")
+                .font(.system(size: 15, weight: .heavy))
+                .foregroundStyle(.black)
+                .contentTransition(.numericText(value: Double(count)))
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 33)
+        .background(
+            Capsule()
+                .fill(Color(hex: "FFF4CB"))
+                .overlay(Capsule().strokeBorder(Color.lockedBorder, lineWidth: 1))
+        )
     }
 }
 
